@@ -28,8 +28,19 @@ class CameraTimeData:
 
     def __init__(self, time_identifier):
         self.year, self.month, self.day, self.hour, self.minute = utils.retrieveTime(time_identifier)
+        self.points = []
     
-    
+    def find_region_of_interest(self, mask):
+        
+        line_no = 0
+        while True:
+            line = mask.readline()
+            line_no += 1
+            if line_no > 1:
+                points = line.split(',')
+                points[0] = points[0][1:]
+                points[1] = points[1][:-1]
+                self.points.append([int(points[0]), int(points[1])])
 
 def load_data():
     global subdirs
@@ -43,18 +54,19 @@ def load_data():
             camera_times = {}
             subsubdirs = [d for d in os.listdir(subdir_path)]
             for subsubdir in subsubdirs:
-                 subsubdir_path = os.path.join(subdir_path, subsubdir)
-                 time_identifier = subsubdir[(len(subdir)+1):]
-                 if time_identifier[-4] == '.':
-                     time_identifier = time_identifier[:-4]
-                 if time_identifier not in camera_times.keys():
-                     camera_times[time_identifier] = CameraTimeData(time_identifier)
-                 if(subsubdir[0:len(subdir)+1] == subdir+"-" and os.path.isdir(subsubdir_path)):
-                     frame_xmls = [d for d in os.listdir(subdir_path)]
-                 elif(subsubdir[-4:] == '.avi' and os.path.isfile(subsubdir_path)):
-                     camera_times[time_identifier].video = os.path.join(subdir_path, subsubdir)
-                 elif(subsubdir[-4:] == '.msk' and os.path.isfile(subsubdir_path)):
-                     pass
+                 if subsubdir[0:len(subdir)+1] == subdir+"-":
+                    subsubdir_path = os.path.join(subdir_path, subsubdir)
+                    time_identifier = subsubdir[(len(subdir)+1):]
+                    if time_identifier[-4] == '.':
+                        time_identifier = time_identifier[:-4]
+                    if time_identifier not in camera_times.keys():
+                        camera_times[time_identifier] = CameraTimeData(time_identifier)
+                    if os.path.isdir(subsubdir_path):
+                        frame_xmls = [d for d in os.listdir(subdir_path)]
+                    elif(subsubdir[-4:] == '.avi' and os.path.isfile(subsubdir_path)):
+                        camera_times[time_identifier].video = os.path.join(subdir_path, subsubdir)
+                    elif(subsubdir[-4:] == '.msk' and os.path.isfile(subsubdir_path)):
+                        file = open(os.path.join(subdir_path, subsubdir))
 
 
 if __name__ == '__main__':

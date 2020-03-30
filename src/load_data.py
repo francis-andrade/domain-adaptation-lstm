@@ -41,9 +41,11 @@ class CameraTimeData:
                 points[0] = points[0][1:]
                 points[1] = points[1][:-1]
                 self.points.append([int(points[0]), int(points[1])])
+    
+    def parse_xml(self, xml):
+        pass
 
 def load_data():
-    global subdirs
     data = {}
     subdirs = [d for d in os.listdir(settings.DATASET_DIRECTORY)]
     for subdir in subdirs:
@@ -63,11 +65,15 @@ def load_data():
                         camera_times[time_identifier] = CameraTimeData(time_identifier)
                     if os.path.isdir(subsubdir_path):
                         frame_xmls = [d for d in os.listdir(subdir_path)]
+                        for frame in frame_xmls:
+                            pass
+
                     elif(subsubdir[-4:] == '.avi' and os.path.isfile(subsubdir_path)):
                         camera_times[time_identifier].video = os.path.join(subdir_path, subsubdir)
                     elif(subsubdir[-4:] == '.msk' and os.path.isfile(subsubdir_path)):
                         file = open(os.path.join(subdir_path, subsubdir))
+                        camera_times[time_identifier].find_region_of_interest(file)
 
 
 if __name__ == '__main__':
-    load_xml()
+    load_data()

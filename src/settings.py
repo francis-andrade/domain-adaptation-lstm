@@ -14,3 +14,4 @@ def get_dataset_directory():
         return os.path.join(abs_path, dataset_relative)
 
 DATASET_DIRECTORY = get_dataset_directory()
+USE_BIG_BUS = False

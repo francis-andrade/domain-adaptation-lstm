@@ -17,3 +17,9 @@ def retrieveTime(str):
         minute=-1
     
     return year, month, day, hour, minute
+
+def retrieveTimeXML(str):
+    [date, time]=str.split(" ")
+    [year,month,day] = [int(s) for s in date.split("/")]
+    [hour,minute,second] = [int(s) for s in date.split("/")]
+    return year, month, day, hour, minute, second

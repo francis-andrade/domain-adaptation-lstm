@@ -4,8 +4,8 @@ from torch.nn import init
 
 class Flatten(nn.Module):
     def forward(self, x):
-        N, C, H, W = x.size() # read in N, C, H, W
-        return x.view(N, -1)  # "flatten" the C * H * W values into a single vector per image
+        N, C, H, W = x.size()
+        return x.view(N, -1) 
     
 class Unflatten(nn.Module):
     """
@@ -30,14 +30,11 @@ def discriminator():
     Build and return a PyTorch model implementing the architecture above.
     """
     model = nn.Sequential(
-            # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
             Flatten(),
             nn.Linear(784, 256),
             nn.CELU(alpha=0.01),
             nn.Linear(256, 256),
             nn.CELU(alpha=0.01),
             nn.Linear(256, 1)
-
-            # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     )
     return model

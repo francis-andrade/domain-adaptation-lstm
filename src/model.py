@@ -22,25 +22,23 @@ class GradientReversalLayer(torch.autograd.Function):
         grad_input = -grad_input
         return grad_input
 
+class Flatten(nn.Module):
+    def forward(self, x):
+        N, C, H, W = x.size() # read in N, C, H, W
+        return x.view(N, -1)  # "flatten" the C * H * W values into a single vector per image
+
 class MDANet(nn.Module):
     """
     Multi-layer perceptron with adversarial regularizer by domain classification.
     """
-    def __init__(self, configs):
+    def __init__(self, num_domains):
         super(MDANet, self).__init__()
-        self.input_dim = configs["input_dim"]
-        self.num_hidden_layers = len(configs["hidden_layers"])
-        self.num_neurons = [self.input_dim] + configs["hidden_layers"]
-        self.num_domains = configs["num_domains"]
-        # Parameters of hidden, fully-connected layers, feature learning component.
-        self.hiddens = nn.ModuleList([nn.Linear(self.num_neurons[i], self.num_neurons[i+1])
-                                      for i in range(self.num_hidden_layers)])
-        # Parameter of the final softmax classification layer.
-        self.softmax = nn.Linear(self.num_neurons[-1], configs["num_classes"])
+        self.num_domains = num_domains
         # Parameter of the domain classification layer, multiple sources single target domain adaptation.
-        self.domains = nn.ModuleList([nn.Linear(self.num_neurons[-1], 2) for _ in range(self.num_domains)])
+        self.domains = nn.ModuleList([nn.Linear(1024, 2) for _ in range(self.num_domains)])
         # Gradient reversal layer.
         self.grls = [GradientReversalLayer() for _ in range(self.num_domains)]
+        self.flatten = [Flatten() for _ in range(self.num_domains)]
 
         self.conv_blocks = nn.ModuleList()
         self.conv_blocks.append(
@@ -119,30 +117,10 @@ class MDANet(nn.Module):
 
         sdomains, tdomains = [], []
         for i in range(self.num_domains):
-            sdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(sdensity[i])), dim=1))
-            tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(tdensity))))
+            sdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](sdensity[i]))), dim=1))
+            tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](tdensity)))))
 
-        for i in range(self.num_domains):
-            for hidden in self.hiddens:
-                sh_relu[i] = F.relu(hidden(sh_relu[i]))
-        for hidden in self.hiddens:
-            th_relu = F.relu(hidden(th_relu))
-        # Classification probabilities on k source domains.
-        logprobs = []
-        for i in range(self.num_domains):
-            logprobs.append(F.log_softmax(self.softmax(sh_relu[i]), dim=1))
-        # Domain classification accuracies.
-        sdomains, tdomains = [], []
-        for i in range(self.num_domains):
-            sdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(sh_relu[i])), dim=1))
-            tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(th_relu)), dim=1))
-        return logprobs, sdomains, tdomains
+        return sdensity, sdomains, tdomains
 
-    def inference(self, inputs):
-        h_relu = inputs
-        for hidden in self.hiddens:
-            h_relu = F.relu(hidden(h_relu))
-        # Classification probability.
-        logprobs = F.log_softmax(self.softmax(h_relu), dim=1)
-        return logprobs
+   
 

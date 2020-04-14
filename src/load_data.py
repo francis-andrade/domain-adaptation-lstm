@@ -14,14 +14,14 @@ class VehicleData:
                 self.id = int(child.text)
             elif child.tag == "bndbox":
                 for grandchild in child:
-                    if child.tag == "xmax":
-                        self.xmax = int(child.text)
-                    elif child.tag == "xmin":
-                        self.xmin = int(child.text)
-                    elif child.tag == "ymax":
-                        self.ymax = int(child.text)
-                    elif child.tag == "ymin":
-                        self.ymin = int(child.text)
+                    if grandchild.tag == "xmax":
+                        self.xmax = int(grandchild.text)
+                    elif grandchild.tag == "xmin":
+                        self.xmin = int(grandchild.text)
+                    elif grandchild.tag == "ymax":
+                        self.ymax = int(grandchild.text)
+                    elif grandchild.tag == "ymin":
+                        self.ymin = int(grandchild.text)
             elif child.tag == "type":
                 self.type = int(child.text)
             elif child.tag == "direction":
@@ -49,6 +49,8 @@ class FrameData:
                 self.flow = int(child.text)
             elif child.tag == "vehicle":
                 self.vehicles.append(VehicleData(child))
+            elif child.tag == "frame":
+                self.id = int(child.text)
 
 class CameraData:
 
@@ -86,7 +88,7 @@ def load_data():
     subdirs = [d for d in os.listdir(settings.DATASET_DIRECTORY)]
     for subdir in subdirs:
         subdir_path = os.path.join(settings.DATASET_DIRECTORY, subdir)
-        if (utils.isInteger(subdir) and os.path.isdir(subdir_path)):
+        if (utils.isInteger(subdir) and os.path.isdir(subdir_path) and int(subdir) in settings.DATASETS):
             camera = CameraData(int(subdir))
             data[int(subdir)] = camera
             subsubdirs = [d for d in os.listdir(subdir_path)]

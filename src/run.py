@@ -8,6 +8,7 @@ from model import MDANet
 import torch.optim as optim
 import torch.nn.functional as F
 import pickle
+from load_data import load_data
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="Name used to save the log file.", type = str, default="webcamT")
@@ -36,7 +37,7 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 # Loading the randomly partition the amazon data set.
 time_start = time.time()
-webcamT = utils.load_data()
+webcamT = load_data()
 
 data_insts, data_labels, num_insts = [], [], []
 
@@ -45,9 +46,9 @@ for id in webcamT:
     new_data_labels = []
     new_num_insts = 0
     for time_id in webcamT[id].camera_times:
-        new_data_insts.append(webcamT[id].camera_times[time_id].frames[1])
+        new_data_insts.append(webcamT[id].camera_times[time_id].frames[1].frame)
         new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[1].vehicles))
-        new_data_insts.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
+        new_data_insts.append(len(webcamT[id].camera_times[time_id].frames[10].frame))
         new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
         new_num_insts += 2
     data_insts.append(new_data_insts)
@@ -72,8 +73,8 @@ for i in range(settings.NUM_DATASETS):
     source_labels = []
     for j in range(settings.NUM_DATASETS):
         if j != i:
-            source_insts.append(data_insts[j].todense().astype(np.float32))
-            source_labels.append(data_labels[j].ravel().astype(np.int64))
+            source_insts.append(torch.from_numpy(np.array(data_insts[j], dtype=np.float64)))
+            source_labels.append(torch.from_numpy(np.array(data_labels[j],  dtype=np.float64)))
     # Build target instances.
     target_idx = i
     target_insts = data_insts[i].todense().astype(np.float32)

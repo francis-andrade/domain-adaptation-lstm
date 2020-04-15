@@ -1,5 +1,7 @@
 import logging
 import cv2
+import sys
+from scipy.ndimage import zoom
 
 def isInteger(str):
     try:
@@ -52,6 +54,8 @@ def readFramesFromVideo(filepath):
     success,image = vidcap.read()
 
     while success:    
+        #print(image.shape)
+        image = zoom(image, (240/image.shape[0], 352/image.shape[1], 1))
         image_array.append(image)
         success,image = vidcap.read()
         

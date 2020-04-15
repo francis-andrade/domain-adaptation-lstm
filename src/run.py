@@ -73,13 +73,13 @@ for i in range(settings.NUM_DATASETS):
     source_labels = []
     for j in range(settings.NUM_DATASETS):
         if j != i:
-            array = np.array(data_insts[j], dtype=np.float64)
+            array = np.array(data_insts[j], dtype=np.double)
             source_insts.append(torch.from_numpy(array))
-            source_labels.append(torch.from_numpy(np.array(data_labels[j],  dtype=np.float64)))
+            source_labels.append(torch.from_numpy(np.array(data_labels[j],  dtype=np.double)))
     # Build target instances.
     target_idx = i
-    target_insts = data_insts[i].todense().astype(np.float32)
-    target_labels = data_labels[i].ravel().astype(np.int64)
+    target_insts = np.array(data_insts[i], dtype=np.double)
+    target_labels = np.array(data_labels[i], dtype=np.double)
     # Train DannNet.
     mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)

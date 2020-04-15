@@ -120,7 +120,7 @@ class MDANet(nn.Module):
             sdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](sdensity[i]))), dim=1))
             tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](tdensity)))))
 
-        return sdensity, sdomains, tdomains
+        return sdensity, scount, sdomains, tdomains
 
    
 

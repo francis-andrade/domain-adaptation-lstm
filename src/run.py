@@ -6,11 +6,12 @@ import utils
 import numpy as np
 from model import MDANet
 import torch.optim as optim
+import torch.nn.functional as F
+import pickle
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="Name used to save the log file.", type = str, default="webcamT")
-parser.add_argument("-f", "--frac", help="Fraction of the supervised training data to be used.",
-                    type=float, default=1.0)
+
 parser.add_argument("-s", "--seed", help="Random seed.", type=int, default=42)
 parser.add_argument("-v", "--verbose", help="Verbose mode: True -- show training progress. False -- "
                                             "not show training progress.", type=bool, default=True)
@@ -35,6 +36,23 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 # Loading the randomly partition the amazon data set.
 time_start = time.time()
+webcamT = utils.load_data()
+
+data_insts, data_labels, num_insts = [], [], []
+
+for id in webcamT:
+    new_data_insts = []
+    new_data_labels = []
+    new_num_insts = 0
+    for time_id in webcamT[id].camera_times:
+        new_data_insts.append(webcamT[id].camera_times[time_id].frames[1])
+        new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[1].vehicles))
+        new_data_insts.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
+        new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
+        new_num_insts += 2
+    data_insts.append(new_data_insts)
+    data_labels.append(new_data_labels)
+    num_insts.append(new_num_insts)
 
 ##############################
 ################################
@@ -46,20 +64,20 @@ mu = args.mu
 gamma = 10.0
 mode = args.mode
 logger.info("Training with domain adaptation using PyTorch madnNet: ")
-logger.info("Hyperparameter setting = {}.".format(configs))
 error_dicts = {}
+results = {}
 for i in range(settings.NUM_DATASETS):
     # Build source instances.
     source_insts = []
     source_labels = []
     for j in range(settings.NUM_DATASETS):
         if j != i:
-            source_insts.append(data_insts[j][:num_trains, :].todense().astype(np.float32))
-            source_labels.append(data_labels[j][:num_trains, :].ravel().astype(np.int64))
+            source_insts.append(data_insts[j].todense().astype(np.float32))
+            source_labels.append(data_labels[j].ravel().astype(np.int64))
     # Build target instances.
     target_idx = i
-    target_insts = data_insts[i][num_trains:, :].todense().astype(np.float32)
-    target_labels = data_labels[i][num_trains:, :].ravel().astype(np.int64)
+    target_insts = data_insts[i].todense().astype(np.float32)
+    target_labels = data_labels[i].ravel().astype(np.int64)
     # Train DannNet.
     mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
@@ -67,21 +85,14 @@ for i in range(settings.NUM_DATASETS):
     # Training phase.
     time_start = time.time()
     for t in range(num_epochs):
-        running_loss = 0.0
-        train_loader = multi_data_loader(source_insts, source_labels, batch_size)
-        for xs, ys in train_loader:
-            slabels = torch.ones(batch_size, requires_grad=False).type(torch.LongTensor).to(device)
-            tlabels = torch.zeros(batch_size, requires_grad=False).type(torch.LongTensor).to(device)
-            for j in range(num_domains):
-                xs[j] = torch.tensor(xs[j], requires_grad=False).to(device)
-                ys[j] = torch.tensor(ys[j], requires_grad=False).to(device)
-            ridx = np.random.choice(target_insts.shape[0], batch_size)
-            tinputs = target_insts[ridx, :]
-            tinputs = torch.tensor(tinputs, requires_grad=False).to(device)
+            running_loss = 0.0
+            slabels = torch.ones(len(source_insts[0]), requires_grad=False).type(torch.LongTensor).to(device)
+            tlabels = torch.zeros(len(source_insts), requires_grad=False).type(torch.LongTensor).to(device)
+            tinputs = torch.tensor(target_insts, requires_grad=False).to(device)
             optimizer.zero_grad()
-            logprobs, sdomains, tdomains = mdan(xs, tinputs)
+            _, counts, sdomains, tdomains = mdan(source_insts, tinputs)
             # Compute prediction accuracy on multiple training sources.
-            losses = torch.stack([F.nll_loss(logprobs[j], ys[j]) for j in range(num_domains)])
+            losses = torch.stack([(torch.sum(counts[j] - source_labels[j])**2/(2*len(counts[j]))) for j in range(num_domains)])
             domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels) +
                                            F.nll_loss(tdomains[j], tlabels) for j in range(num_domains)])
             # Different final loss function depending on different training modes.
@@ -94,7 +105,7 @@ for i in range(settings.NUM_DATASETS):
             running_loss += loss.item()
             loss.backward()
             optimizer.step()
-        logger.info("Iteration {}, loss = {}".format(t, running_loss))
+            logger.info("Iteration {}, loss = {}".format(t, running_loss))
     time_end = time.time()
     # Test on other domains.
     mdan.eval()
@@ -105,7 +116,7 @@ for i in range(settings.NUM_DATASETS):
     pred_acc = torch.sum(preds_labels == target_labels).item() / float(target_insts.size(0))
     error_dicts[data_name[i]] = preds_labels.numpy() != target_labels.numpy()
     logger.info("Prediction accuracy on {} = {}, time used = {} seconds.".
-                format(data_name[i], pred_acc, time_end - time_start))
+                format(i, pred_acc, time_end - time_start))
     results[data_name[i]] = pred_acc
 logger.info("Prediction accuracy with multiple source domain adaptation using madnNet: ")
 logger.info(results)

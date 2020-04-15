@@ -48,7 +48,7 @@ for id in webcamT:
     for time_id in webcamT[id].camera_times:
         new_data_insts.append(webcamT[id].camera_times[time_id].frames[1].frame)
         new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[1].vehicles))
-        new_data_insts.append(len(webcamT[id].camera_times[time_id].frames[10].frame))
+        new_data_insts.append(webcamT[id].camera_times[time_id].frames[10].frame)
         new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
         new_num_insts += 2
     data_insts.append(new_data_insts)
@@ -73,7 +73,8 @@ for i in range(settings.NUM_DATASETS):
     source_labels = []
     for j in range(settings.NUM_DATASETS):
         if j != i:
-            source_insts.append(torch.from_numpy(np.array(data_insts[j], dtype=np.float64)))
+            array = np.array(data_insts[j], dtype=np.float64)
+            source_insts.append(torch.from_numpy(array))
             source_labels.append(torch.from_numpy(np.array(data_labels[j],  dtype=np.float64)))
     # Build target instances.
     target_idx = i

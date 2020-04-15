@@ -55,7 +55,9 @@ def readFramesFromVideo(filepath):
 
     while success:    
         #print(image.shape)
-        image = zoom(image, (240/image.shape[0], 352/image.shape[1], 1))
+        if image.shape[0] != 240 or image.shape[1] != 352:
+            print("Here: "+filepath)
+            image = zoom(image, (240/image.shape[0], 352/image.shape[1], 1))
         image_array.append(image)
         success,image = vidcap.read()
         

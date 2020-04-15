@@ -1,6 +1,6 @@
 ##
-## Note File 410/410-20160430-12/000157.xml and other have an error Substitute & for &amp
-##
+## Note 1: File 410/410-20160430-12/000157.xml and other have an error Substitute & for &amp
+## Note 2: Some frames id are the same for different frames: for example in 410-20160704-12 290.xml and 295.xml
 import os
 import settings
 import xml.etree.ElementTree as ET
@@ -33,6 +33,7 @@ class VehicleData:
 class FrameData:
     
     def __init__(self, root_xml):
+        self.frame = None
         self.vehicles = []
         for child in root_xml:
             if child.tag == "time":
@@ -62,7 +63,7 @@ class CameraTimeData:
 
     def __init__(self, time_identifier):
         self.year, self.month, self.day, self.hour, self.minute = utils.retrieveTime(time_identifier)
-        self.frames = []
+        self.frames = {}
 
     
     def find_region_of_interest(self, mask):
@@ -80,6 +81,15 @@ class CameraTimeData:
                 if points[1][-1] == "]":
                     points[1] = points[1][:-1]
                 self.points.append([int(points[0]), int(points[1])])
+    
+    def extractFramesFromVideo(self, filepath):
+        frame_images = utils.readFramesFromVideo(filepath)
+        if len(self.frames) != len(frame_images):
+            print(filepath)
+            print(len(self.frames))
+            print(len(frame_images))
+        for i in range(min(len(self.frames), len(frame_images))):
+            self.frames[i+1].frame = frame_images[i]
    
 
 
@@ -92,6 +102,7 @@ def load_data():
             camera = CameraData(int(subdir))
             data[int(subdir)] = camera
             subsubdirs = [d for d in os.listdir(subdir_path)]
+            video_queue = []
             for subsubdir in subsubdirs:
                  if subsubdir[-4:] != ".jpg":
                     if subsubdir[0:len(subdir)+1] == subdir+"-":
@@ -112,13 +123,21 @@ def load_data():
                                         xml_data = frame_file.read()
                                         xml_data = xml_data.replace('&', '&amp;')
                                         root = ET.fromstring(xml_data)
-                                        camera.camera_times[time_identifier].frames.append(FrameData(root))
+                                        frame_data = FrameData(root)
+                                        frame_file_id = int(frame[:-4])
+                                        camera.camera_times[time_identifier].frames[frame_file_id] = frame_data
 
                             elif(subsubdir[-4:] == '.avi' and os.path.isfile(subsubdir_path)):
                                 camera.camera_times[time_identifier].video = subsubdir_path
+                                video_queue.append([time_identifier, subsubdir_path])
                             elif(subsubdir[-4:] == '.msk' and os.path.isfile(subsubdir_path)):
                                 file = open(subsubdir_path)
                                 camera.camera_times[time_identifier].find_region_of_interest(file)
+            
+            for video in video_queue:
+                [time_identifier, subsubdir_path] = video
+                camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)
+
     return data
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 import logging
+import cv2
 
 def isInteger(str):
     try:
@@ -43,3 +44,16 @@ def get_logger(filename):
     std_handler.setLevel(logging.DEBUG)
     logger.addHandler(std_handler)
     return logger
+
+def readFramesFromVideo(filepath):
+    vidcap = cv2.VideoCapture(filepath)
+
+    image_array = []
+    success,image = vidcap.read()
+
+    while success:    
+        image_array.append(image)
+        success,image = vidcap.read()
+        
+
+    return image_array

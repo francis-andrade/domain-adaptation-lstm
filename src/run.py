@@ -23,7 +23,7 @@ parser.add_argument("-d", "--dimension", help="Number of features to be used in 
                     type=int, default=5000)
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
-parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=15)
+parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
 parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=20)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="dynamic")
 # Compile and configure all the model parameters.
@@ -73,13 +73,13 @@ for i in range(settings.NUM_DATASETS):
     source_labels = []
     for j in range(settings.NUM_DATASETS):
         if j != i:
-            array = np.array(data_insts[j], dtype=np.double)
-            source_insts.append(torch.from_numpy(array))
-            source_labels.append(torch.from_numpy(np.array(data_labels[j],  dtype=np.double)))
+            array = np.array(data_insts[j], dtype=np.float)
+            source_insts.append(torch.from_numpy(array).float())
+            source_labels.append(torch.from_numpy(np.array(data_labels[j],  dtype=np.float)).float())
     # Build target instances.
     target_idx = i
-    target_insts = np.array(data_insts[i], dtype=np.double)
-    target_labels = np.array(data_labels[i], dtype=np.double)
+    target_insts = np.array(data_insts[i], dtype=np.float)
+    target_labels = np.array(data_labels[i], dtype=np.float)
     # Train DannNet.
     mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)

@@ -46,6 +46,8 @@ for id in webcamT:
     new_data_labels = []
     new_num_insts = 0
     for time_id in webcamT[id].camera_times:
+        if new_num_insts > 10:
+            break
         new_data_insts.append(webcamT[id].camera_times[time_id].frames[1].frame)
         new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[1].vehicles))
         #new_data_insts.append(webcamT[id].camera_times[time_id].frames[10].frame)
@@ -90,8 +92,8 @@ for i in range(settings.NUM_DATASETS):
     for t in range(num_epochs):
             running_loss = 0.0
             slabels = torch.ones(len(source_insts[0]), requires_grad=False).type(torch.LongTensor).to(device)
-            tlabels = torch.zeros(len(source_insts), requires_grad=False).type(torch.LongTensor).to(device)
-            tinputs = torch.tensor(target_insts, requires_grad=False).to(device)
+            tlabels = torch.zeros(len(source_insts[0]), requires_grad=False).type(torch.LongTensor).to(device)
+            tinputs = torch.tensor(target_insts, requires_grad=False).float().to(device)
             optimizer.zero_grad()
             logger.info("Starting MDAN")
             _, counts, sdomains, tdomains = mdan(source_insts, tinputs)
@@ -114,8 +116,8 @@ for i in range(settings.NUM_DATASETS):
     time_end = time.time()
     # Test on other domains.
     mdan.eval()
-    target_insts = torch.tensor(target_insts, requires_grad=False).to(device)
-    target_labels = torch.tensor(target_labels)
+    target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
+    target_labels = torch.tensor(target_labels).float()
     #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
     preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().squeeze_()
     pred_acc = torch.sum(preds_labels == target_labels).item() / float(target_insts.size(0))

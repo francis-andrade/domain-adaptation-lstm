@@ -35,7 +35,7 @@ class MDANet(nn.Module):
         super(MDANet, self).__init__()
         self.num_domains = num_domains
         # Parameter of the domain classification layer, multiple sources single target domain adaptation.
-        self.domains = nn.ModuleList([nn.Linear(1024, 2) for _ in range(self.num_domains)])
+        self.domains = nn.ModuleList([nn.Linear(464640, 2) for _ in range(self.num_domains)])
         # Gradient reversal layer.
         self.grls = [GradientReversalLayer() for _ in range(self.num_domains)]
         self.flatten = [Flatten() for _ in range(self.num_domains)]
@@ -133,6 +133,10 @@ class MDANet(nn.Module):
             tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](th)))))
 
         return sdensity, scount, sdomains, tdomains
+    
+    def inference(self, inputs):
+        _, _, count = self.forward_single_input(inputs)
+        return count
 
    
 

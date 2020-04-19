@@ -79,6 +79,16 @@ class MDANet(nn.Module):
                 ('Atrous4', nn.Conv2d(512, 512, (3, 3), dilation=2, padding=2)),
                 ('ReLU_A4', nn.ReLU()),
             ])))
+        self.conv_blocks.append(
+            nn.Sequential(OrderedDict([
+                ('Conv5', nn.Conv2d(1408, 512, (1, 1))),  # 1408 = 128 + 256 + 512 + 512 (hyper-atrous combination)
+                ('ReLU5', nn.ReLU()),
+                ('Deconv1', nn.ConvTranspose2d(512, 256, (3, 3), stride=2, padding=1, output_padding=1)),
+                ('ReLU_D1', nn.ReLU()),
+                ('Deconv2', nn.ConvTranspose2d(256, 64, (3, 3), stride=2, padding=1, output_padding=1)),
+                ('ReLU_D2', nn.ReLU()),
+                ('Conv6', nn.Conv2d(64, 1, (1, 1))),
+            ])))
 
     def forward_single_input(self, input, mask = None):
         
@@ -90,14 +100,14 @@ class MDANet(nn.Module):
         h3 = self.conv_blocks[2](h2)
         h4 = self.conv_blocks[3](h3)
         h = torch.cat((h1, h2, h3, h4), dim=1)  # hyper-atrous combination
-        h = self.conv_blocks[4](h)
+        g = self.conv_blocks[4](h)
         if mask is not None:
             h = h * mask  # zero output values outside the active region
 
-        density = h  # predicted density map
-        count = h.sum(dim=(1, 2, 3))  # predicted vehicle count
+        density = g  # predicted density map
+        count = g.sum(dim=(1, 2, 3))  # predicted vehicle count
 
-        return density, count
+        return h, density, count
 
     def forward(self, sinputs, tinputs, mask=None):
         """
@@ -108,17 +118,19 @@ class MDANet(nn.Module):
 
         sdensity = []
         scount = []
+        sh = []
         for i in range(self.num_domains):
-            density, count = self.forward_single_input(sinputs[i], mask)
+            h, density, count = self.forward_single_input(sinputs[i], mask)
+            sh.append(h)
             sdensity.append(density)
             scount.append(count)
 
-        tdensity, tcount = self.forward_single_input(tinputs)
+        th, tdensity, tcount = self.forward_single_input(tinputs)
 
         sdomains, tdomains = [], []
         for i in range(self.num_domains):
-            sdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](sdensity[i]))), dim=1))
-            tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](tdensity)))))
+            sdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](sh[i]))), dim=1))
+            tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](th)))))
 
         return sdensity, scount, sdomains, tdomains
 

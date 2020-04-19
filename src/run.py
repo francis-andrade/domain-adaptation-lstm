@@ -48,9 +48,9 @@ for id in webcamT:
     for time_id in webcamT[id].camera_times:
         new_data_insts.append(webcamT[id].camera_times[time_id].frames[1].frame)
         new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[1].vehicles))
-        new_data_insts.append(webcamT[id].camera_times[time_id].frames[10].frame)
-        new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
-        new_num_insts += 2
+        #new_data_insts.append(webcamT[id].camera_times[time_id].frames[10].frame)
+        #new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
+        new_num_insts += 1
     data_insts.append(new_data_insts)
     data_labels.append(new_data_labels)
     num_insts.append(new_num_insts)
@@ -74,8 +74,8 @@ for i in range(settings.NUM_DATASETS):
     for j in range(settings.NUM_DATASETS):
         if j != i:
             array = np.array(data_insts[j], dtype=np.float)
-            source_insts.append(torch.from_numpy(array).float())
-            source_labels.append(torch.from_numpy(np.array(data_labels[j],  dtype=np.float)).float())
+            source_insts.append(torch.from_numpy(array).float().to(device))
+            source_labels.append(torch.from_numpy(np.array(data_labels[j],  dtype=np.float)).float().to(device))
     # Build target instances.
     target_idx = i
     target_insts = np.array(data_insts[i], dtype=np.float)
@@ -86,13 +86,16 @@ for i in range(settings.NUM_DATASETS):
     mdan.train()
     # Training phase.
     time_start = time.time()
+    logger.info("Start training...")
     for t in range(num_epochs):
             running_loss = 0.0
             slabels = torch.ones(len(source_insts[0]), requires_grad=False).type(torch.LongTensor).to(device)
             tlabels = torch.zeros(len(source_insts), requires_grad=False).type(torch.LongTensor).to(device)
             tinputs = torch.tensor(target_insts, requires_grad=False).to(device)
             optimizer.zero_grad()
+            logger.info("Starting MDAN")
             _, counts, sdomains, tdomains = mdan(source_insts, tinputs)
+            logger.info("Ending MDAN")
             # Compute prediction accuracy on multiple training sources.
             losses = torch.stack([(torch.sum(counts[j] - source_labels[j])**2/(2*len(counts[j]))) for j in range(num_domains)])
             domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels) +

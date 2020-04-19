@@ -15,5 +15,5 @@ def get_dataset_directory():
 
 DATASET_DIRECTORY = get_dataset_directory()
 USE_BIG_BUS = False
-NUM_DATASETS = 4
-DATASETS = [403, 410, 511, 398]
+NUM_DATASETS = 3
+DATASETS = [403, 410, 511]

@@ -62,7 +62,7 @@ for id in webcamT:
 num_epochs = args.epoch
 batch_size = args.batch_size
 num_domains = settings.NUM_DATASETS - 1
-lr = 1.0
+lr = 0.00001
 mu = args.mu
 gamma = 10.0
 mode = args.mode

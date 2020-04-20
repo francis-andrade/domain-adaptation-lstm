@@ -28,6 +28,12 @@ class VehicleData:
                 self.direction = int(child.text)
             elif child.tag == "previous":
                 self.previous = int(child.text)
+    
+    def calculateCenter(self):
+        return [(xmax+xmin)/2, (ymax+ymin)/2]
+    
+    def calculateGamma(self):
+        return (xmax-xmin)*(ymax-ymin)
                         
 
 class FrameData:
@@ -52,6 +58,15 @@ class FrameData:
                 self.vehicles.append(VehicleData(child))
             elif child.tag == "frame":
                 self.id = int(child.text)
+    
+    def computeGaussian(self):
+        centers = []
+        gammas = []
+        for vehicle in self.vehicles:
+            centers.append(vehicle.calculateCenter())
+            gammas.append(vehicle.calculateGamma())
+        self.density = utils.density_map(settings.IMAGE_SHAPE, centers, gammas)
+            
 
 class CameraData:
 
@@ -94,7 +109,8 @@ class CameraTimeData:
             self.frames[i+1].frame = frame_images[i]
     
     def computeGaussian(self):
-        pass
+        for frame in self.frames:
+            frame.computeGaussian()
    
 
 

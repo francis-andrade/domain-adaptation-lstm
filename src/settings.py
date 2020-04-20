@@ -17,3 +17,4 @@ DATASET_DIRECTORY = get_dataset_directory()
 USE_BIG_BUS = False
 NUM_DATASETS = 3
 DATASETS = [403, 410, 511]
+IMAGE_SHAPE = (60,88)

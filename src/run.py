@@ -39,22 +39,26 @@ torch.manual_seed(args.seed)
 time_start = time.time()
 webcamT = load_data()
 
-data_insts, data_labels, num_insts = [], [], []
+data_insts, data_densities, data_counts, num_insts = [], [], [], []
 
 for id in webcamT:
     new_data_insts = []
-    new_data_labels = []
+    new_data_densities = []
+    new_data_counts = []
     new_num_insts = 0
     for time_id in webcamT[id].camera_times:
         if new_num_insts > 10:
             break
-        new_data_insts.append(webcamT[id].camera_times[time_id].frames[1].frame)
-        new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[1].vehicles))
-        #new_data_insts.append(webcamT[id].camera_times[time_id].frames[10].frame)
-        #new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
-        new_num_insts += 1
+        if webcamT[id].camera_times[time_id].frames[1].frame is not None:
+            new_data_insts.append(webcamT[id].camera_times[time_id].frames[1].frame)
+            new_data_densities.append(webcamT[id].camera_times[time_id].frames[1].density)
+            new_data_counts.append(len(webcamT[id].camera_times[time_id].frames[1].vehicles))
+            #new_data_insts.append(webcamT[id].camera_times[time_id].frames[10].frame)
+            #new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
+            new_num_insts += 1
     data_insts.append(new_data_insts)
-    data_labels.append(new_data_labels)
+    data_counts.append(new_data_counts)
+    data_densities.append(new_data_densities)
     num_insts.append(new_num_insts)
 
 ##############################
@@ -72,16 +76,19 @@ results = {}
 for i in range(settings.NUM_DATASETS):
     # Build source instances.
     source_insts = []
-    source_labels = []
+    source_counts = []
+    source_densities = []
     for j in range(settings.NUM_DATASETS):
         if j != i:
             array = np.array(data_insts[j], dtype=np.float)
             source_insts.append(torch.from_numpy(array).float().to(device))
-            source_labels.append(torch.from_numpy(np.array(data_labels[j],  dtype=np.float)).float().to(device))
+            source_counts.append(torch.from_numpy(np.array(data_counts[j],  dtype=np.float)).float().to(device))
+            source_densities.append(torch.from_numpy(np.array(data_densities[j],  dtype=np.float)).float().to(device))
     # Build target instances.
     target_idx = i
     target_insts = np.array(data_insts[i], dtype=np.float)
-    target_labels = np.array(data_labels[i], dtype=np.float)
+    target_densities = np.array(data_densities[i], dtype=np.float)
+    target_counts = np.array(data_counts[i], dtype=np.float)
     # Train DannNet.
     mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
@@ -96,10 +103,10 @@ for i in range(settings.NUM_DATASETS):
             tinputs = torch.tensor(target_insts, requires_grad=False).float().to(device)
             optimizer.zero_grad()
             logger.info("Starting MDAN")
-            _, counts, sdomains, tdomains = mdan(source_insts, tinputs)
+            densities, _, sdomains, tdomains = mdan(source_insts, tinputs)
             logger.info("Ending MDAN")
             # Compute prediction accuracy on multiple training sources.
-            losses = torch.stack([(torch.sum(counts[j] - source_labels[j])**2/(2*len(counts[j]))) for j in range(num_domains)])
+            losses = torch.stack([(torch.sum(densities[j] - source_densities[j])**2/(2*len(densities[j]))) for j in range(num_domains)])
             domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels) +
                                            F.nll_loss(tdomains[j], tlabels) for j in range(num_domains)])
             # Different final loss function depending on different training modes.
@@ -117,10 +124,12 @@ for i in range(settings.NUM_DATASETS):
     # Test on other domains.
     mdan.eval()
     target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
-    target_counts = torch.tensor(target_labels).float()
+    target_densities  = torch.tensor(target_densities).float()
+    target_counts  = torch.tensor(target_counts).float()
     #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
-    preds_counts = mdan.inference(target_insts)
-    mse = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
-    logger.info("MSE on {} = {}, time used = {} seconds.".
-                format(i, mse, time_end - time_start))
+    preds_densities, preds_counts = mdan.inference(target_insts)
+    mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
+    mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
+    logger.info("{}:-\n\t Count MSE: {}, Density MSE: {} time used = {} seconds.".
+                format(i, mse_count, mse_density, time_end - time_start))
     #results[data_name[i]] = pred_acc

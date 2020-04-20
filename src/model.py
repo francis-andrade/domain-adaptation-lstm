@@ -135,8 +135,8 @@ class MDANet(nn.Module):
         return sdensity, scount, sdomains, tdomains
     
     def inference(self, inputs):
-        _, _, count = self.forward_single_input(inputs)
-        return count
+        _, densities, counts = self.forward_single_input(inputs)
+        return densities, counts
 
    
 

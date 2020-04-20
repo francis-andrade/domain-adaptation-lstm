@@ -1,7 +1,6 @@
 import logging
 import cv2
 import sys
-from scipy.ndimage import zoom
 import numpy as np
 import settings
 
@@ -62,8 +61,6 @@ def readFramesFromVideo(filepath):
             print("Here: "+filepath)
             image = zoom(image, (240/image.shape[0], 352/image.shape[1], 1))
         '''
-        image = zoom(image, (settings.IMAGE_SHAPE[0]/image.shape[0], settings.IMAGE_SHAPE[1]/image.shape[1], 1))
-        image = image.reshape(3, settings.IMAGE_SHAPE[0], settings.IMAGE_SHAPE[1])
         image_array.append(image)
         success,image = vidcap.read()
         

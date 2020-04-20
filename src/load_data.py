@@ -5,6 +5,7 @@ import os
 import settings
 import xml.etree.ElementTree as ET
 import utils
+from scipy.ndimage import zoom
 
 class VehicleData:
 
@@ -30,10 +31,10 @@ class VehicleData:
                 self.previous = int(child.text)
     
     def calculateCenter(self):
-        return [(xmax+xmin)/2, (ymax+ymin)/2]
+        return [(self.xmax+self.xmin)/2, (self.ymax+self.ymin)/2]
     
     def calculateGamma(self):
-        return (xmax-xmin)*(ymax-ymin)
+        return (self.xmax-self.xmin)*(self.ymax-self.ymin)
                         
 
 class FrameData:
@@ -59,14 +60,19 @@ class FrameData:
             elif child.tag == "frame":
                 self.id = int(child.text)
     
-    def computeGaussian(self):
+    def computeGaussian(self, zoom_shape = settings.IMAGE_ZOOM_SHAPE):
         centers = []
         gammas = []
         for vehicle in self.vehicles:
             centers.append(vehicle.calculateCenter())
             gammas.append(vehicle.calculateGamma())
-        self.density = utils.density_map(settings.IMAGE_SHAPE, centers, gammas)
-            
+        self.density = utils.density_map((self.height, self.width), centers, gammas)
+        
+        if zoom_shape is not None:
+             self.density = zoom(self.density, (zoom_shape[0]/self.density.shape[0], zoom_shape[1]/self.density.shape[1]))
+             self.density = self.density.reshape(1, zoom_shape[0], zoom_shape[1])
+             self.frame = zoom(self.frame, (zoom_shape[0]/self.frame.shape[0], zoom_shape[1]/self.frame.shape[1], 1))
+             self.frame = self.frame.reshape(3, zoom_shape[0], zoom_shape[1])
 
 class CameraData:
 
@@ -109,8 +115,13 @@ class CameraTimeData:
             self.frames[i+1].frame = frame_images[i]
     
     def computeGaussian(self):
-        for frame in self.frames:
-            frame.computeGaussian()
+        for frame_id in self.frames:
+            if self.frames[frame_id].frame is None:
+                #print("None")
+                pass
+            else:
+                #print("Not None")
+                self.frames[frame_id].computeGaussian()
    
 
 
@@ -156,7 +167,7 @@ def load_data():
                                 camera.camera_times[time_identifier].find_region_of_interest(file)
             
             for i, video in enumerate(video_queue):
-                if i > 1:
+                if i > 10:
                     break
                 [time_identifier, subsubdir_path] = video
                 camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)

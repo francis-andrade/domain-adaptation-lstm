@@ -84,12 +84,17 @@ class CameraTimeData:
     
     def extractFramesFromVideo(self, filepath):
         frame_images = utils.readFramesFromVideo(filepath)
+        '''
         if len(self.frames) != len(frame_images):
             print(filepath)
             print(len(self.frames))
             print(len(frame_images))
+        '''
         for i in range(min(len(self.frames), len(frame_images))):
             self.frames[i+1].frame = frame_images[i]
+    
+    def computeGaussian(self):
+        pass
    
 
 
@@ -134,9 +139,12 @@ def load_data():
                                 file = open(subsubdir_path)
                                 camera.camera_times[time_identifier].find_region_of_interest(file)
             
-            for video in video_queue:
+            for i, video in enumerate(video_queue):
+                if i > 1:
+                    break
                 [time_identifier, subsubdir_path] = video
                 camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)
+                camera.camera_times[time_identifier].computeGaussian()
 
     return data
 

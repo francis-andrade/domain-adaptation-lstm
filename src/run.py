@@ -25,7 +25,7 @@ parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for th
                     type=float, default=1e-2)
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
 parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=20)
-parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="dynamic")
+parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 # Compile and configure all the model parameters.
 args = parser.parse_args()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -117,15 +117,10 @@ for i in range(settings.NUM_DATASETS):
     # Test on other domains.
     mdan.eval()
     target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
-    target_labels = torch.tensor(target_labels).float()
+    target_counts = torch.tensor(target_labels).float()
     #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
-    preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().squeeze_()
-    pred_acc = torch.sum(preds_labels == target_labels).item() / float(target_insts.size(0))
-    error_dicts[data_name[i]] = preds_labels.numpy() != target_labels.numpy()
-    logger.info("Prediction accuracy on {} = {}, time used = {} seconds.".
-                format(i, pred_acc, time_end - time_start))
-    results[data_name[i]] = pred_acc
-logger.info("Prediction accuracy with multiple source domain adaptation using madnNet: ")
-logger.info(results)
-pickle.dump(error_dicts, open("{}-{}-{}-{}.pkl".format(args.name, args.frac, args.model, args.mode), "wb"))
-logger.info("*" * 100)
+    preds_counts = mdan.inference(target_insts)
+    mse = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
+    logger.info("MSE on {} = {}, time used = {} seconds.".
+                format(i, mse, time_end - time_start))
+    #results[data_name[i]] = pred_acc

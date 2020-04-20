@@ -35,7 +35,7 @@ class MDANet(nn.Module):
         super(MDANet, self).__init__()
         self.num_domains = num_domains
         # Parameter of the domain classification layer, multiple sources single target domain adaptation.
-        self.domains = nn.ModuleList([nn.Linear(464640, 2) for _ in range(self.num_domains)])
+        self.domains = nn.ModuleList([nn.Sequential(nn.Linear(464640, 10), nn.Linear(10, 2)) for _ in range(self.num_domains)])
         # Gradient reversal layer.
         self.grls = [GradientReversalLayer() for _ in range(self.num_domains)]
         self.flatten = [Flatten() for _ in range(self.num_domains)]

@@ -32,7 +32,6 @@ class MDANet(nn.Module):
     Multi-layer perceptron with adversarial regularizer by domain classification.
     """
     def __init__(self, num_domains):
-        super(MDANet, self).__init__()
         self.num_domains = num_domains
         # Parameter of the domain classification layer, multiple sources single target domain adaptation.
         self.domains = nn.ModuleList([nn.Sequential(nn.Linear(464640, 10), nn.Linear(10, 2)) for _ in range(self.num_domains)])
@@ -90,7 +89,7 @@ class MDANet(nn.Module):
                 ('Conv6', nn.Conv2d(64, 1, (1, 1))),
             ])))
 
-    def forward_single_input(self, input, mask = None):
+    def forward_cnn(self, input, mask = None):
         
         if mask is not None:
             input = input * mask  # zero input values outside the active region
@@ -105,9 +104,9 @@ class MDANet(nn.Module):
             h = h * mask  # zero output values outside the active region
 
         density = g  # predicted density map
-        count = g.sum(dim=(1, 2, 3))  # predicted vehicle count
+        #count = g.sum(dim=(1, 2, 3))  # predicted vehicle count
 
-        return h, density, count
+        return h, density
 
     def forward(self, sinputs, tinputs, mask=None):
         """
@@ -120,12 +119,13 @@ class MDANet(nn.Module):
         scount = []
         sh = []
         for i in range(self.num_domains):
-            h, density, count = self.forward_single_input(sinputs[i], mask)
+            h, density = self.forward_cnn(sinputs[i], mask)
+            count = density.sum(dim=(1,2,3))
             sh.append(h)
             sdensity.append(density)
             scount.append(count)
 
-        th, tdensity, tcount = self.forward_single_input(tinputs)
+        th, _ = self.forward_cnn(tinputs)
 
         sdomains, tdomains = [], []
         for i in range(self.num_domains):
@@ -135,7 +135,8 @@ class MDANet(nn.Module):
         return sdensity, scount, sdomains, tdomains
     
     def inference(self, inputs):
-        _, densities, counts = self.forward_single_input(inputs)
+        _, densities = self.forward_cnn(inputs)
+        counts = densities.sum(dim=(1,2,3))
         return densities, counts
 
    

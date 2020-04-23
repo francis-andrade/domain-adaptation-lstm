@@ -170,7 +170,7 @@ def load_data():
                                 camera.camera_times[time_identifier].find_region_of_interest(file)
             
             for i, video in enumerate(video_queue):
-                if i > 10:
+                if i > 1:
                     break
                 [time_identifier, subsubdir_path] = video
                 camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)
@@ -180,14 +180,15 @@ def load_data():
 
 if __name__ == '__main__':
     data = load_data()
+    i = 0
     for domain in data:
-        for ct in domain[data].camera_times:
-            for id in domain[data].camera_times[ct].frames:
-                if domain[data].camera_times[ct].frames[id].frame is not None:
-                    X = domain[data].camera_times[ct].frames[id].frame
-                    cid = str(domain)+'/'+ str(ct)+'/'+str(domain[data].camera_times[ct].frames[id].id)
-                    count = len(domain[data].camera_times[ct].frames[id].vehicles)
-                    density = domain[data].camera_times[ct].frames[id].density
+        for ct in data[domain].camera_times:
+            for id in data[domain].camera_times[ct].frames:
+                if data[domain].camera_times[ct].frames[id].frame is not None:
+                    X = data[domain].camera_times[ct].frames[id].frame
+                    cid = str(domain)+'/'+ str(ct)+'/'+str(data[domain].camera_times[ct].frames[id].id)
+                    count = len(data[domain].camera_times[ct].frames[id].vehicles)
+                    density = data[domain].camera_times[ct].frames[id].density
                     print('Image {}: cid={}, count={}, density_sum={:.3f}'.format(i, cid, count, np.sum(density)))
                     gs = gridspec.GridSpec(2, 2)
                     fig = plt.figure()
@@ -205,3 +206,4 @@ if __name__ == '__main__':
                     ax3.imshow(Xh.astype('uint8'))
                     ax3.set_title('Highlighted vehicles')
                     plt.show()
+                    i += 1

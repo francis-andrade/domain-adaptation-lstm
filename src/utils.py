@@ -67,7 +67,7 @@ def readFramesFromVideo(filepath):
 
     return image_array
 
-def gauss2d(shape, center, gamma, out_shape=None):
+def gauss2d(shape, center, gammax, gammay, out_shape=None):
     H, W = shape
     if out_shape is None:
         Ho = H
@@ -78,7 +78,7 @@ def gauss2d(shape, center, gamma, out_shape=None):
     x, y = np.meshgrid(x, y)
     x, y = x.astype(float)/Wo, y.astype(float)/Ho
     x0, y0 = float(center[0])/W, float(center[1])/H
-    G = np.exp(-gamma * ((x - x0)**2 + (y - y0)**2))  # Gaussian kernel centered in (x0, y0)
+    G = np.exp(-(((x - x0)/gammax)**2 + ((y - y0)/gammay)**2))  # Gaussian kernel centered in (x0, y0)
     return G/np.sum(G)  # normalized so it sums to 1
 
 def density_map(shape, centers, gammas, out_shape=None):
@@ -87,5 +87,5 @@ def density_map(shape, centers, gammas, out_shape=None):
     else:
         D = np.zeros(out_shape)
     for i, (x, y) in enumerate(centers):
-        D += gauss2d(shape, (x, y), gammas[i], out_shape=out_shape)
+        D += gauss2d(shape, (x, y), gammas[i][0], gammas[i][1], out_shape=out_shape)
     return D

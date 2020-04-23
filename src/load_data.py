@@ -37,7 +37,8 @@ class VehicleData:
         return [(self.xmax+self.xmin)/2, (self.ymax+self.ymin)/2]
     
     def calculateGamma(self):
-        return [(self.xmax-self.xmin), (self.ymax-self.ymin)]
+        factor = 1e-2
+        return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
                         
 
 class FrameData:
@@ -63,19 +64,35 @@ class FrameData:
             elif child.tag == "frame":
                 self.id = int(child.text)
     
-    def computeGaussian(self, zoom_shape = settings.IMAGE_ZOOM_SHAPE):
-        centers = []
-        gammas = []
-        for vehicle in self.vehicles:
-            centers.append(vehicle.calculateCenter())
-            gammas.append(vehicle.calculateGamma())
-        self.density = utils.density_map((self.height, self.width), centers, gammas)
-        
+    def computeBoundingBox(self, zoom_shape = None):
+
+        if settings.USE_GAUSSIAN:
+            self.drawGaussian()
+        else:
+            self.drawBoundingBox()
+
         if zoom_shape is not None:
              self.density = zoom(self.density, (zoom_shape[0]/self.density.shape[0], zoom_shape[1]/self.density.shape[1]))
              self.density = self.density.reshape(1, zoom_shape[0], zoom_shape[1])
              self.frame = zoom(self.frame, (zoom_shape[0]/self.frame.shape[0], zoom_shape[1]/self.frame.shape[1], 1))
              self.frame = self.frame.reshape(3, zoom_shape[0], zoom_shape[1])
+    
+    def drawGaussian(self):
+        centers = []
+        gammas = []
+        for vehicle in self.vehicles:
+            centers.append(vehicle.calculateCenter())
+            gammas.append(vehicle.calculateGamma())
+        self.density = utils.density_map((self.frame.shape[0], self.frame.shape[1]), centers, gammas)
+        
+    def drawBoundingBox(self):
+
+        self.density = np.zeros((self.frame.shape[0], self.frame.shape[1]))
+       
+        for vehicle in self.vehicles:
+            area = (vehicle.ymax - vehicle.ymin + 1)*(vehicle.xmax-vehicle.xmin+1)
+            self.density[vehicle.ymin:vehicle.ymax+1, vehicle.xmin:vehicle.xmax+1] += 1
+    
 
 class CameraData:
 
@@ -117,15 +134,10 @@ class CameraTimeData:
         for i in range(min(len(self.frames), len(frame_images))):
             self.frames[i+1].frame = frame_images[i]
     
-    def computeGaussian(self):
+    def computeBoundingBox(self):
         for frame_id in self.frames:
-            if self.frames[frame_id].frame is None:
-                #print("None")
-                pass
-            else:
-                #print("Not None")
-                self.frames[frame_id].computeGaussian()
-   
+            self.frames[frame_id].computeBoundingBox()
+           
 
 
 def load_data():
@@ -174,8 +186,7 @@ def load_data():
                     break
                 [time_identifier, subsubdir_path] = video
                 camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)
-                camera.camera_times[time_identifier].computeGaussian()
-
+                camera.camera_times[time_identifier].computeBoundingBox()
     return data
 
 if __name__ == '__main__':
@@ -186,9 +197,11 @@ if __name__ == '__main__':
             for id in data[domain].camera_times[ct].frames:
                 if data[domain].camera_times[ct].frames[id].frame is not None:
                     X = data[domain].camera_times[ct].frames[id].frame
+                    X = X.reshape(X.shape[0], X.shape[1], 3)
                     cid = str(domain)+'/'+ str(ct)+'/'+str(data[domain].camera_times[ct].frames[id].id)
                     count = len(data[domain].camera_times[ct].frames[id].vehicles)
                     density = data[domain].camera_times[ct].frames[id].density
+                    density = density.reshape(density.shape[0], density.shape[1], 1)
                     print('Image {}: cid={}, count={}, density_sum={:.3f}'.format(i, cid, count, np.sum(density)))
                     gs = gridspec.GridSpec(2, 2)
                     fig = plt.figure()

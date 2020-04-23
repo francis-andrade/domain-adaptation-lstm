@@ -88,4 +88,5 @@ def density_map(shape, centers, gammas, out_shape=None):
         D = np.zeros(out_shape)
     for i, (x, y) in enumerate(centers):
         D += gauss2d(shape, (x, y), gammas[i][0], gammas[i][1], out_shape=out_shape)
+    #print(np.sum(D), len(centers))    
     return D

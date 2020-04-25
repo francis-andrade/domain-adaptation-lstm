@@ -36,8 +36,8 @@ class VehicleData:
     def calculateCenter(self):
         return [(self.xmax+self.xmin)/2, (self.ymax+self.ymin)/2]
     
-    def calculateGamma(self):
-        factor = 1e-2
+    def calculateSigma(self):
+        factor = 1/40
         return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
                         
 
@@ -79,11 +79,13 @@ class FrameData:
     
     def drawGaussian(self):
         centers = []
-        gammas = []
+        sigmas = []
         for vehicle in self.vehicles:
             centers.append(vehicle.calculateCenter())
-            gammas.append(vehicle.calculateGamma())
-        self.density = utils.density_map((self.frame.shape[0], self.frame.shape[1]), centers, gammas)
+            sigmas.append(vehicle.calculateSigma())
+        self.centers = centers
+        self.sigmas = sigmas
+        self.density = utils.density_map((self.frame.shape[0], self.frame.shape[1]), centers[0:1], sigmas)
         
     def drawBoundingBox(self):
 

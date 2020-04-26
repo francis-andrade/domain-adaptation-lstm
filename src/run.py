@@ -37,7 +37,7 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 # Loading the randomly partition the amazon data set.
 time_start = time.time()
-webcamT = load_data()
+webcamT = load_data(10)
 
 data_insts, data_densities, data_counts, num_insts = [], [], [], []
 

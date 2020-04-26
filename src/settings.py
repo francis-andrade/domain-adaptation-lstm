@@ -16,9 +16,9 @@ def get_dataset_directory():
 DATASET_DIRECTORY = get_dataset_directory()
 USE_BIG_BUS = False
 NUM_DATASETS = 3
-#DATASETS = [403, 410, 511]
-DATASETS = [403]
+DATASETS = [403, 410, 511]
+#DATASETS = [403]
 IMAGE_NEW_SHAPE = (120, 176)
 IMAGE_ORIGINAL_SHAPE = (240, 352)
-TEMPORAL = True
+TEMPORAL = False
 USE_GAUSSIAN = True

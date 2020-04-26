@@ -50,7 +50,7 @@ for id in webcamT:
         if new_num_insts > 10:
             break
         if webcamT[id].camera_times[time_id].frames[1].frame is not None:
-            new_data_insts.append(webcamT[id].camera_times[time_id].frames[1].frame)
+            new_data_insts.append(webcamT[id].camera_times[time_id].frames[1].frame / 255)
             new_data_densities.append(webcamT[id].camera_times[time_id].frames[1].density)
             new_data_counts.append(len(webcamT[id].camera_times[time_id].frames[1].vehicles))
             #new_data_insts.append(webcamT[id].camera_times[time_id].frames[10].frame)

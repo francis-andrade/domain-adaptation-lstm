@@ -37,9 +37,9 @@ class VehicleData:
         return [(self.xmax+self.xmin)/2, (self.ymax+self.ymin)/2]
     
     def calculateSigma(self):
-        factor = 1/40
-        return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
-                        
+        #factor = 1/1.96 # so that exactly 5% of gaussian distribution is outside the car boundaries
+        #return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
+        return [15, 15]               
 
 class FrameData:
     
@@ -85,7 +85,7 @@ class FrameData:
             sigmas.append(vehicle.calculateSigma())
         self.centers = centers
         self.sigmas = sigmas
-        self.density = utils.density_map((self.frame.shape[0], self.frame.shape[1]), centers[0:1], sigmas)
+        self.density = utils.density_map((self.frame.shape[0], self.frame.shape[1]), centers, sigmas)
         
     def drawBoundingBox(self):
 
@@ -93,7 +93,7 @@ class FrameData:
        
         for vehicle in self.vehicles:
             area = (vehicle.ymax - vehicle.ymin + 1)*(vehicle.xmax-vehicle.xmin+1)
-            self.density[vehicle.ymin:vehicle.ymax+1, vehicle.xmin:vehicle.xmax+1] += 1
+            self.density[vehicle.ymin:vehicle.ymax+1, vehicle.xmin:vehicle.xmax+1] += 1 / area
     
 
 class CameraData:

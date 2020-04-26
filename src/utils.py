@@ -72,11 +72,11 @@ def gauss2d(shape, center, sigmax, sigmay):
 
     x, y = np.array(range(W)), np.array(range(H))
     x, y = np.meshgrid(x, y)
-    x, y = x.astype(float)/W, y.astype(float)/H
-    x0, y0 = float(center[0])/W, float(center[1])/H
-    G = np.exp(-(((x - x0)/sigmax)**2 + ((y - y0)/sigmay)**2))  # Gaussian kernel centered in (x0, y0)
-    return G
-    #return G/np.sum(G)  # normalized so it sums to 1
+    x, y = x.astype(float), y.astype(float)
+    x0, y0 = float(center[0]), float(center[1])
+    G = (1/(2*np.pi*sigmax*sigmay))*np.exp(-(1/2)*(((x - x0)/sigmax)**2 + ((y - y0)/sigmay)**2))  # Gaussian kernel centered in (x0, y0)
+    #return G
+    return G/np.sum(G)  # normalized so it sums to 1
 
 def density_map(shape, centers, sigmas):
     

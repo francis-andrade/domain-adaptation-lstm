@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.nn.utils import rnn
 from model import MDANet
+import torch.nn.functional as F
 
 class MDANTemporal(MDANNet):
 
@@ -27,14 +28,22 @@ class MDANTemporal(MDANNet):
         h0, c0 = h0.to(device), c0.to(device)
         return h0, c0
     
-    def forward(self, X, mask=None, lengths=None):
+    def forward_temporal(self, X, mask=None, lengths=None):
         T, N, C, H, W = X.shape
         X = X.reshape(T*N, C, H, W)
         if mask is not None:
             mask = mask.reshape(T*N, 1, H, W)
-        
-        h, g = super().forward_cnn(mask)
 
+        _, density = super().forward_cnn(mask)
+
+        h, count_fcn, count_lstm = super().forward_lstm(X.shape, density, mask, lengths)
+       
+        count = count_fcn + count_lstm  # predicted vehicle count
+
+        return density, h, count
+
+    def forward_lstm(self, shape, h, mask=None, lengths = None):
+        T, N, C, H, W = shape
         density = h.reshape(T, N, 1, H, W)  # predicted density map
 
         h = h.reshape(T, N, -1)
@@ -52,6 +61,28 @@ class MDANTemporal(MDANNet):
             h, _ = torch.nn.utils.rnn.pad_packed_sequence(h, batch_first=False, total_length=T)
 
         count_lstm = self.final_layer(h.reshape(T*N, -1)).reshape(T, N)
-        count = count_fcn + count_lstm  # predicted vehicle count
 
-        return density, count
+        return h, count_fcn, count_lstm
+
+
+    def forward(self, sinputs, tinputs, mask=None, lengths=None):
+       
+        
+        sdensity = []
+        scount = []
+        sh = []
+        for i in range(self.num_domains):
+            X = sinputs[i]
+            density, h, count = self.forward_temporal(X, mask, lengths)
+            sdensity.append(density)
+            scount.append(count)
+            sh.append(h)
+
+        _, th, _ = self.forward_temporal(tinputs, mask, lengths)  
+
+        sdomains, tdomains = [], []
+        for i in range(self.num_domains):
+            sdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](sh[i]))), dim=1))
+            tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](th)))))
+
+        return sdensity, scount, sdomains, tdomains

@@ -102,7 +102,7 @@ class MDANet(nn.Module):
         h = torch.cat((h1, h2, h3, h4), dim=1)  # hyper-atrous combination
         g = self.conv_blocks[4](h)
         if mask is not None:
-            h = h * mask  # zero output values outside the active region
+            g = g * mask  # zero output values outside the active region
 
         density = g  # predicted density map
         #count = g.sum(dim=(1, 2, 3))  # predicted vehicle count

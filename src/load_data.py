@@ -82,8 +82,8 @@ class FrameData:
         for vehicle in self.vehicles:
             centers.append(vehicle.calculateCenter())
             sigmas.append(vehicle.calculateSigma())
-        self.centers = centers
-        self.sigmas = sigmas
+        #self.centers = centers
+        #self.sigmas = sigmas
         self.density = utils.density_map((self.frame.shape[0], self.frame.shape[1]), centers, sigmas)
         
     def drawBoundingBox(self):
@@ -192,6 +192,16 @@ def load_data(max_videos_per_dataset = None, zoom_shape = settings.IMAGE_NEW_SHA
                 camera.camera_times[time_identifier].computeBoundingBox(zoom_shape)
     return data
 
+def save_data_file(filename, data):
+    """
+    Saves data to a file
+    :param filename: name of the file to where the data should be saved
+    :param data: data we want to save in the file
+    """
+    filepath = os.path.join(settings.DATASET_DIRECTORY, '../Frames/'+filename)
+    np.save(filepath, data)
+
 if __name__ == '__main__':
-    data = load_data(1)
-    
+    pass
+    #data = load_data()
+    #save_data_file('Frames_constant_variance')

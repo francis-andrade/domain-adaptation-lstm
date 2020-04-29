@@ -24,7 +24,7 @@ parser.add_argument("-d", "--dimension", help="Number of features to be used in 
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=20)
+parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 # Compile and configure all the model parameters.
 args = parser.parse_args()
@@ -74,21 +74,7 @@ logger.info("Training with domain adaptation using PyTorch madnNet: ")
 error_dicts = {}
 results = {}
 for i in range(settings.NUM_DATASETS):
-    # Build source instances.
-    source_insts = []
-    source_counts = []
-    source_densities = []
-    for j in range(settings.NUM_DATASETS):
-        if j != i:
-            array = np.array(data_insts[j], dtype=np.float)
-            source_insts.append(torch.from_numpy(array).float().to(device))
-            source_counts.append(torch.from_numpy(np.array(data_counts[j],  dtype=np.float)).float().to(device))
-            source_densities.append(torch.from_numpy(np.array(data_densities[j],  dtype=np.float)).float().to(device))
-    # Build target instances.
-    target_idx = i
-    target_insts = np.array(data_insts[i], dtype=np.float)
-    target_densities = np.array(data_densities[i], dtype=np.float)
-    target_counts = np.array(data_counts[i], dtype=np.float)
+    
     # Train DannNet.
     mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
@@ -98,15 +84,28 @@ for i in range(settings.NUM_DATASETS):
     logger.info("Start training...")
     for t in range(num_epochs):
             running_loss = 0.0
-            slabels = torch.ones(len(source_insts[0]), requires_grad=False).type(torch.LongTensor).to(device)
-            tlabels = torch.zeros(len(source_insts[0]), requires_grad=False).type(torch.LongTensor).to(device)
-            tinputs = torch.tensor(target_insts, requires_grad=False).float().to(device)
-            optimizer.zero_grad()
-            logger.info("Starting MDAN")
-            densities, _, sdomains, tdomains = mdan(source_insts, tinputs)
+            train_loader = utils.multi_data_loader(data_insts, data_counts, data_densities)
+            for batch_insts, batch_densities, batch_counts in train_loader:
+                slabels = torch.ones(batch_size, requires_grad=False).type(torch.LongTensor).to(device)
+                tlabels = torch.zeros(batch_size, requires_grad=False).type(torch.LongTensor).to(device)
+                # Build source instances.
+                source_insts = []
+                source_counts = []
+                source_densities = []
+                for j in range(settings.NUM_DATASETS):
+                    if j != i:
+                        source_insts.append(torch.from_numpy(np.array(batch_insts[j], dtype=np.float)).float().to(device))
+                        source_counts.append(torch.from_numpy(np.array(batch_counts[j],  dtype=np.float)).float().to(device))
+                        source_densities.append(torch.from_numpy(np.array(batch_densities[j],  dtype=np.float)).float().to(device))
+
+                tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float)).float().to(device)       
+                optimizer.zero_grad()
+
+
+            model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs)
             logger.info("Ending MDAN")
             # Compute prediction accuracy on multiple training sources.
-            losses = torch.stack([(torch.sum(densities[j] - source_densities[j])**2/(2*len(densities[j]))) for j in range(num_domains)])
+            losses = torch.stack([(torch.sum(model_densities[j] - source_densities[j])**2/(2*len(model_densities[j]))) for j in range(num_domains)])
             domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels) +
                                            F.nll_loss(tdomains[j], tlabels) for j in range(num_domains)])
             # Different final loss function depending on different training modes.
@@ -122,6 +121,11 @@ for i in range(settings.NUM_DATASETS):
             logger.info("Iteration {}, loss = {}".format(t, running_loss))
     time_end = time.time()
     # Test on other domains.
+    # Build target instances.
+    target_idx = i
+    target_insts = np.array(data_insts[i], dtype=np.float)
+    target_densities = np.array(data_densities[i], dtype=np.float)
+    target_counts = np.array(data_counts[i], dtype=np.float)
     mdan.eval()
     target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
     target_densities  = torch.tensor(target_densities).float()

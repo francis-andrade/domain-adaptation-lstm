@@ -85,3 +85,32 @@ def density_map(shape, centers, sigmas):
         D += gauss2d(shape, (x, y), sigmas[i][0], sigmas[i][1])
     #print(np.sum(D), len(centers))    
     return D
+
+def multi_data_loader(inputs, counts, densities, batch_size):
+    """
+    Both inputs and labels are list of numpy arrays, containing instances and labels from multiple sources.
+    """
+    assert len(inputs) == len(counts) == len(densities)
+    input_sizes = [data.shape[0] for data in inputs]
+    max_input_size = max(input_sizes)
+    num_domains = len(inputs)
+
+    indexes = []
+    for i in range(num_domains):
+        indexes.append(np.arrange(len(inputs[i])))
+        np.random.shuffle(indexes[i])
+
+    num_blocks = np.ceil(max_input_size / batch_size)
+    for j in range(num_blocks):
+        batch_inputs, batch_counts, batch_densities = [], [], []
+        for i in range(num_domains):
+            if (j+1)*batch_size <= len(indexes[i]):
+                batch_inputs.append(inputs[i][indexes[i][j*batch_size]:indexes[i][(j+1)*batch_size]])
+                batch_counts.append(counts[i][indexes[i][j*batch_size]:indexes[i][(j+1)*batch_size]])
+                batch_densities.append(densities[i][indexes[i][j*batch_size]:indexes[i][(j+1)*batch_size]])
+            else:
+                batch_inputs.append(inputs[i][indexes[i][j*batch_size]:])
+                batch_counts.append(counts[i][indexes[i][j*batch_size]:])
+                batch_densities.append(densities[i][indexes[i][j*batch_size]:])
+
+        yield batch_inputs, batch_counts, batch_densities

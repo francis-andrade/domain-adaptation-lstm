@@ -88,11 +88,10 @@ def density_map(shape, centers, sigmas):
 
 def multi_data_loader(inputs, counts, densities, batch_size):
     """
-    Both inputs and labels are list of numpy arrays, containing instances and labels from multiple sources.
+    Both inputs, counts and densities are list of numpy arrays, containing instances and labels from multiple sources.
     """
-    assert len(inputs) == len(counts) == len(densities)
     input_sizes = [data.shape[0] for data in inputs]
-    max_input_size = max(input_sizes)
+    min_input_size = min(input_sizes)
     num_domains = len(inputs)
 
     indexes = []
@@ -100,17 +99,48 @@ def multi_data_loader(inputs, counts, densities, batch_size):
         indexes.append(np.arrange(len(inputs[i])))
         np.random.shuffle(indexes[i])
 
-    num_blocks = np.ceil(max_input_size / batch_size)
+    num_blocks = np.ceil(min_input_size / batch_size)
     for j in range(num_blocks):
         batch_inputs, batch_counts, batch_densities = [], [], []
         for i in range(num_domains):
-            if (j+1)*batch_size <= len(indexes[i]):
-                batch_inputs.append(inputs[i][indexes[i][j*batch_size]:indexes[i][(j+1)*batch_size]])
-                batch_counts.append(counts[i][indexes[i][j*batch_size]:indexes[i][(j+1)*batch_size]])
-                batch_densities.append(densities[i][indexes[i][j*batch_size]:indexes[i][(j+1)*batch_size]])
-            else:
-                batch_inputs.append(inputs[i][indexes[i][j*batch_size]:])
-                batch_counts.append(counts[i][indexes[i][j*batch_size]:])
-                batch_densities.append(densities[i][indexes[i][j*batch_size]:])
+                batch_inputs.append(inputs[i][indexes[i][j*batch_size:(j+1)*batch_size]])
+                batch_counts.append(counts[i][indexes[i][j*batch_size:(j+1)*batch_size]])
+                batch_densities.append(densities[i][indexes[i][j*batch_size:(j+1)*batch_size]])
+
 
         yield batch_inputs, batch_counts, batch_densities
+
+def multi_data_loader_temporal(inputs, counts, densities, batch_size, sequence_size=None):
+    
+    num_domains = len(inputs)
+    shape = inputs[0][0][0].shape
+
+    if sequence_size is None:
+        seq_inputs, seq_counts, seq_densities = inputs, counts, densities 
+        max_lens = [np.max([len(inputs[i][j] for j in range(len(inputs[i])))]) for i in range(num_domains)]
+        for i in range(num_domains):
+            for j in range(len(inputs[i])):
+                if len(inputs[i][j]) < max_lens[i]:
+                    seq_inputs[i][j].append(np.zeros(shape))
+                    seq_counts[i][j].append(np.zeros(shape))
+                    seq_densities[i][j].append(np.zeros(shape))
+    else:
+        seq_inputs, seq_counts, seq_densities = [], [], []
+        for i in range(num_domains):
+            seq_inputs.append([])
+            seq_counts.append([])
+            seq_densities.append([])
+            for j in range(len(inputs[i])):
+                seq_inputs[i].append(inputs[i][j*sequence_size:(j+1)*sequence_size])
+                seq_counts[i].append(inputs[i][j*sequence_size:(j+1)*sequence_size])
+                seq_densities[i].append(inputs[i][j*sequence_size:(j+1)*sequence_size])
+
+                if len(seq_inputs[i][-1]) < sequence_size:
+                    while(len(seq_inputs[i][-1]) < sequence_size):
+                        seq_inputs[i][j].append(np.zeros(shape))
+                        seq_counts[i][j].append(np.zeros(shape))
+                        seq_densities[i][j].append(np.zeros(shape))
+
+
+    return multi_data_loader(seq_inputs, seq_counts, seq_densities)
+    

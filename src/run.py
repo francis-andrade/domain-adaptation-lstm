@@ -5,6 +5,7 @@ import torch
 import utils
 import numpy as np
 from model import MDANet
+from model_temporal import MDANTemporal
 import torch.optim as optim
 import torch.nn.functional as F
 import pickle
@@ -37,28 +38,40 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 # Loading the randomly partition the amazon data set.
 time_start = time.time()
-webcamT = load_data(10)
+data = load_data(10)
 
 data_insts, data_densities, data_counts, num_insts = [], [], [], []
 
-for id in webcamT:
+for domain_id in data:
     new_data_insts = []
     new_data_densities = []
     new_data_counts = []
     new_num_insts = 0
-    for time_id in webcamT[id].camera_times:
+    for time_id in data[domain_id].camera_times:
+        domain_insts, domain_densities, domain_counts = [], [], []
         if new_num_insts > 10:
             break
-        if webcamT[id].camera_times[time_id].frames[1].frame is not None:
-            new_data_insts.append(webcamT[id].camera_times[time_id].frames[1].frame / 255)
-            new_data_densities.append(webcamT[id].camera_times[time_id].frames[1].density)
-            new_data_counts.append(len(webcamT[id].camera_times[time_id].frames[1].vehicles))
-            #new_data_insts.append(webcamT[id].camera_times[time_id].frames[10].frame)
-            #new_data_labels.append(len(webcamT[id].camera_times[time_id].frames[10].vehicles))
-            new_num_insts += 1
-    data_insts.append(new_data_insts)
-    data_counts.append(new_data_counts)
-    data_densities.append(new_data_densities)
+        for frame_id in data[domain_id].camera_times[time_id].frames:
+            if new_num_insts > 10:
+                break
+            if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
+                new_data_insts.append(data[domain_id].camera_times[time_id].frames[frame_id].frame / 255)
+                new_data_densities.append(data[domain_id].camera_times[time_id].frames[frame_id].density)
+                new_data_counts.append(len(data[domain_id].camera_times[time_id].frames[frame_id].vehicles))
+                new_num_insts += 1
+
+        if settings.Temporal:
+            domain_insts.append(new_data_insts)
+            domain_densities.append(new_data_densities)
+            domain_counts.append(new_data_counts)
+        else:
+            domain_insts += new_data_insts
+            domain_densities += new_data_densities
+            domain_counts += new_data_counts
+
+    data_insts.append(domain_insts)
+    data_counts.append(domain_counts)
+    data_densities.append(domain_densities)
     num_insts.append(new_num_insts)
 
 ##############################
@@ -76,7 +89,10 @@ results = {}
 for i in range(settings.NUM_DATASETS):
     
     # Train DannNet.
-    mdan = MDANet(num_domains).to(device)
+    if settings.TEMPORAL:
+        mdan = MDANTemporal(num_domains).to(device)
+    else:
+        mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
     mdan.train()
     # Training phase.
@@ -84,7 +100,10 @@ for i in range(settings.NUM_DATASETS):
     logger.info("Start training...")
     for t in range(num_epochs):
             running_loss = 0.0
-            train_loader = utils.multi_data_loader(data_insts, data_counts, data_densities)
+            if settings.TEMPORAL:
+                train_loader = utils.multi_data_loader_temporal(data_insts, data_counts, data_densities, batch_size, settings.SEQUENCE_SIZE)
+            else:
+                train_loader = utils.multi_data_loader(data_insts, data_counts, data_densities, batch_size)
             for batch_insts, batch_densities, batch_counts in train_loader:
                 slabels = torch.ones(batch_size, requires_grad=False).type(torch.LongTensor).to(device)
                 tlabels = torch.zeros(batch_size, requires_grad=False).type(torch.LongTensor).to(device)

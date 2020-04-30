@@ -6,7 +6,7 @@ def get_dataset_directory():
     Auxiliary function that returns the dataset directory which is different according to the platform:
     Windows or Linux
     """
-    dataset_relative = "../../WebCamT/data"
+    dataset_relative = "../../Dataset/WebCamT"
     if platform.system() == "Windows":
         return dataset_relative
     else:
@@ -23,5 +23,6 @@ IMAGE_NEW_SHAPE = (120, 176)
 IMAGE_ORIGINAL_SHAPE = (240, 352)
 TEMPORAL = False
 USE_GAUSSIAN = True
+COMPUTE_BOUNDING_BOX = False
 SEQUENCE_SIZE = 10
 BATCH_SIZE = 2

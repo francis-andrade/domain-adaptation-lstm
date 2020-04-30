@@ -59,8 +59,8 @@ for domain_id in data:
                 new_data_densities.append(data[domain_id].camera_times[time_id].frames[frame_id].density)
                 new_data_counts.append(len(data[domain_id].camera_times[time_id].frames[frame_id].vehicles))
                 new_num_insts += 1
-
-        if settings.Temporal:
+        
+        if settings.TEMPORAL:
             domain_insts.append(new_data_insts)
             domain_densities.append(new_data_densities)
             domain_counts.append(new_data_counts)

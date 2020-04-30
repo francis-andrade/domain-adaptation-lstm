@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 import utils
 from scipy.ndimage import zoom
 import numpy as np
+import joblib
 
 
 class VehicleData:
@@ -143,10 +144,11 @@ class CameraTimeData:
 
 
 def load_data(max_videos_per_dataset = None, zoom_shape = settings.IMAGE_NEW_SHAPE):
+    webcamTDir = os.path.join(settings.DATASET_DIRECTORY, 'WebCamT')
     data = {}
-    subdirs = [d for d in os.listdir(settings.DATASET_DIRECTORY)]
+    subdirs = [d for d in os.listdir(webcamTDir)]
     for subdir in subdirs:
-        subdir_path = os.path.join(settings.DATASET_DIRECTORY, subdir)
+        subdir_path = os.path.join(webcamTDir, subdir)
         if (utils.isInteger(subdir) and os.path.isdir(subdir_path) and int(subdir) in settings.DATASETS):
             camera = CameraData(int(subdir))
             data[int(subdir)] = camera
@@ -189,17 +191,49 @@ def load_data(max_videos_per_dataset = None, zoom_shape = settings.IMAGE_NEW_SHA
                         break
                 [time_identifier, subsubdir_path] = video
                 camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)
-                camera.camera_times[time_identifier].computeBoundingBox(zoom_shape)
+                if settings.COMPUTE_BOUNDING_BOX:
+                    camera.camera_times[time_identifier].computeBoundingBox(zoom_shape)
     return data
 
-def save_data_file(filename, data):
+def save_data(data, prefix):
     """
     Saves data to a file
-    :param filename: name of the file to where the data should be saved
     :param data: data we want to save in the file
     """
-    filepath = os.path.join(settings.DATASET_DIRECTORY, '../Frames/'+filename)
-    np.save(filepath, data)
+    frame_directory = os.path.join(settings.DATASET_DIRECTORY, '/Frames')
+    for domain_id in data:
+        joblib.dump(data[domain_id], os.path.join(frame_directory,prefix+'_'+ str(domain_id)+'.npy'))
+
+
+def save_densities(data, prefix):
+    densities_directory = os.path.join(settings.DATASET_DIRECTORY, '/Densities')
+    for domain_id in data:
+        dens_dict = {}
+        for time_id in data[domain_id].camera_times:
+            dens_dict[time_id] = {}
+            for frame_id in data[domain_id].camera_times[time_id].frames:
+                dens_dict[time_id][frame_id] = data[domain_id].camera_times[time_id].frames[frame_id].density 
+        joblib.dump(dens_dict, os.path.join(densities_directory, prefix+'_'+str(domain_id)+'.npy'))
+
+def load_data_densities(prefix_data, prefix_densities):
+    data = {}
+    frame_directory = os.path.join(settings.DATASET_DIRECTORY, '/Frames')
+    densities_directory = os.path.join(settings.DATASET_DIRECTORY, '/Densities')
+    files = [d for d in os.listdir(frame_directory)]
+    for file in files:
+        file_path = os.path.join(frame_directory, file)
+        if (file[0:len(prefix_data)+1] == prefix_data + '_' and not os.path.isdir(file_path)):
+            domain_id = file[len(prefix_data)+1:-4]
+            if utils.isInteger(domain_id) and domain_id in settings.DATASETS:
+                domain_id = int(domain_id)
+                data[domain_id] = joblib.load(file_path)
+                densities_file = os.path.join(densities_directory, prefix_densities+'_'+str(domain_id)+'.npy')
+                dens_dict = joblib.load(densities_file)
+                for time_id in data[domain_id].camera_times:
+                    for frame_id in data[domain_id].camera_times[time_id].frames:
+                        data[domain_id].camera_times[time_id].frames[frame_id].density = dens_dict[time_id][frame_id]
+            
+    
 
 if __name__ == '__main__':
     pass

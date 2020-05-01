@@ -9,7 +9,7 @@ from model_temporal import MDANTemporal
 import torch.optim as optim
 import torch.nn.functional as F
 import pickle
-from load_data import load_data
+from load_data import load_data, load_data_densities, CameraData, CameraTimeData, FrameData, VehicleData
 import joblib
 
 parser = argparse.ArgumentParser()
@@ -41,7 +41,8 @@ torch.manual_seed(args.seed)
 time_start = time.time()
 logger.info('Started loading data')
 #data = load_data(10)
-data = joblib.load('temporary.npy')
+#data = joblib.load('temporary.npy')
+data =  load_data_densities('first', 'first')
 logger.info('Finished loading data')
 data_insts, data_densities, data_counts, num_insts = [], [], [], []
 
@@ -51,10 +52,12 @@ for domain_id in data:
     new_num_insts = 0
     for time_id in data[domain_id].camera_times:
         new_data_insts, new_data_densities, new_data_counts = [], [], []
-        if new_num_insts > 10:
+        if new_num_insts > 50:
             break
-        for frame_id in data[domain_id].camera_times[time_id].frames:
-            if new_num_insts > 10:
+        frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
+        frame_ids.sort()
+        for frame_id in frame_ids:
+            if new_num_insts > 50:
                 break
             if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
                 new_data_insts.append(data[domain_id].camera_times[time_id].frames[frame_id].frame / 255)

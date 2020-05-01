@@ -45,6 +45,7 @@ class FrameData:
     
     def __init__(self, root_xml):
         self.frame = None
+        self.density = None
         self.vehicles = []
         for child in root_xml:
             if child.tag == "time":
@@ -75,8 +76,7 @@ class FrameData:
              if not settings.USE_GAUSSIAN:
                 self.density = zoom(self.density, (zoom_shape[0]/self.density.shape[0], zoom_shape[1]/self.density.shape[1]))
              self.density = self.density.reshape(1, zoom_shape[0], zoom_shape[1])
-             self.frame = zoom(self.frame, (zoom_shape[0]/self.frame.shape[0], zoom_shape[1]/self.frame.shape[1], 1))
-             self.frame = self.frame.reshape(3, zoom_shape[0], zoom_shape[1])
+             
     
     def drawGaussian(self, zoom_shape = settings.IMAGE_NEW_SHAPE):
         centers = []
@@ -126,7 +126,7 @@ class CameraTimeData:
                     points[1] = points[1][:-1]
                 self.points.append([int(points[0]), int(points[1])])
     
-    def extractFramesFromVideo(self, filepath):
+    def extractFramesFromVideo(self, filepath, zoom_shape = settings.IMAGE_NEW_SHAPE):
         frame_images = utils.readFramesFromVideo(filepath)
         '''
         if len(self.frames) != len(frame_images):
@@ -136,11 +136,16 @@ class CameraTimeData:
         '''
         for i in range(min(len(self.frames), len(frame_images))):
             self.frames[i+1].frame = frame_images[i]
+            if zoom_shape is not None:
+                self.frame = zoom(self.frame, (zoom_shape[0]/self.frame.shape[0], zoom_shape[1]/self.frame.shape[1], 1))
+                self.frame = self.frame.reshape(3, zoom_shape[0], zoom_shape[1])
+
     
     def computeBoundingBox(self, zoom_shape = settings.IMAGE_NEW_SHAPE):
         for frame_id in self.frames:
             if self.frames[frame_id].frame is not None:
                 self.frames[frame_id].computeBoundingBox(zoom_shape)
+                
            
 
 
@@ -201,13 +206,13 @@ def save_data(data, prefix):
     Saves data to a file
     :param data: data we want to save in the file
     """
-    frame_directory = os.path.join(settings.DATASET_DIRECTORY, '/Frames')
+    frame_directory = os.path.join(settings.DATASET_DIRECTORY, 'Frames')
     for domain_id in data:
         joblib.dump(data[domain_id], os.path.join(frame_directory,prefix+'_'+ str(domain_id)+'.npy'))
 
 
 def save_densities(data, prefix):
-    densities_directory = os.path.join(settings.DATASET_DIRECTORY, '/Densities')
+    densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Densities')
     for domain_id in data:
         dens_dict = {}
         for time_id in data[domain_id].camera_times:
@@ -218,21 +223,24 @@ def save_densities(data, prefix):
 
 def load_data_densities(prefix_data, prefix_densities):
     data = {}
-    frame_directory = os.path.join(settings.DATASET_DIRECTORY, '/Frames')
-    densities_directory = os.path.join(settings.DATASET_DIRECTORY, '/Densities')
+    frame_directory = os.path.join(settings.DATASET_DIRECTORY, 'Frames')
+    densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Densities')
     files = [d for d in os.listdir(frame_directory)]
+    print(files)
     for file in files:
         file_path = os.path.join(frame_directory, file)
         if (file[0:len(prefix_data)+1] == prefix_data + '_' and not os.path.isdir(file_path)):
             domain_id = file[len(prefix_data)+1:-4]
-            if utils.isInteger(domain_id) and domain_id in settings.DATASETS:
+            if utils.isInteger(domain_id) and int(domain_id) in settings.DATASETS:
                 domain_id = int(domain_id)
                 data[domain_id] = joblib.load(file_path)
                 densities_file = os.path.join(densities_directory, prefix_densities+'_'+str(domain_id)+'.npy')
                 dens_dict = joblib.load(densities_file)
-                for time_id in data[domain_id].camera_times:
-                    for frame_id in data[domain_id].camera_times[time_id].frames:
+                for time_id in dens_dict:
+                    for frame_id in dens_dict[time_id]:
                         data[domain_id].camera_times[time_id].frames[frame_id].density = dens_dict[time_id][frame_id]
+    
+    return data
 
 def compute_densities(data):
     for domain_id in data:

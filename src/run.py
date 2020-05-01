@@ -120,7 +120,11 @@ for i in range(settings.NUM_DATASETS):
                     if j != i:
                         source_insts.append(torch.from_numpy(np.array(batch_insts[j], dtype=np.float)).float().to(device))
                         source_counts.append(torch.from_numpy(np.array(batch_counts[j],  dtype=np.float)).float().to(device))
-                        source_densities.append(torch.from_numpy(np.array(batch_densities[j],  dtype=np.float)).float().to(device))
+                        density = np.array(batch_densities[j], dtype=np.float)
+                        if settings.TEMPORAL:
+                            N, T, C, H, W = density.shape 
+                            density = np.reshape(density, (N*T, 1, C, H, W))
+                        source_densities.append(torch.from_numpy(density).float().to(device))
 
                 tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float)).float().to(device)       
                 optimizer.zero_grad()

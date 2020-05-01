@@ -37,7 +37,6 @@ class MDANTemporal(MDANet):
 
         _, density = super().forward_cnn(X, mask)
 
-        print(density.shape)
         h, count_fcn, count_lstm = self.forward_lstm((N, T, C, H, W), density, mask, lengths)
        
         count = count_fcn + count_lstm  # predicted vehicle count
@@ -87,3 +86,7 @@ class MDANTemporal(MDANet):
             tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](th)))))
 
         return sdensity, scount, sdomains, tdomains
+    
+    def inference(self, inputs):
+        densities, _, counts = self.forward_temporal(inputs)
+        return densities, counts

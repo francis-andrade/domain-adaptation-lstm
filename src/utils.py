@@ -157,5 +157,5 @@ def multi_data_loader_temporal(inputs, densities, counts, batch_size, sequence_s
             seq_densities[i] = np.array(seq_densities[i])
 
 
-    return multi_data_loader(seq_inputs, seq_counts, seq_densities, batch_size)
+    return multi_data_loader(seq_inputs, seq_densities, seq_counts, batch_size)
     

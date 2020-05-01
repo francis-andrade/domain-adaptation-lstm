@@ -94,7 +94,7 @@ def density_map(shape, centers, sigmas, out_shape=None):
     #print(np.sum(D), len(centers))    
     return D
 
-def multi_data_loader(inputs, counts, densities, batch_size):
+def multi_data_loader(inputs, densities, counts, batch_size):
     """
     Both inputs, counts and densities are list of numpy arrays, containing instances and labels from multiple sources.
     """
@@ -107,7 +107,7 @@ def multi_data_loader(inputs, counts, densities, batch_size):
         indexes.append(np.arange(len(inputs[i])))
         np.random.shuffle(indexes[i])
 
-    num_blocks = np.ceil(min_input_size / batch_size)
+    num_blocks = int(np.ceil(float(min_input_size) / batch_size))
     for j in range(num_blocks):
         batch_inputs, batch_counts, batch_densities = [], [], []
         for i in range(num_domains):
@@ -115,10 +115,9 @@ def multi_data_loader(inputs, counts, densities, batch_size):
                 batch_counts.append(counts[i][indexes[i][j*batch_size:(j+1)*batch_size]])
                 batch_densities.append(densities[i][indexes[i][j*batch_size:(j+1)*batch_size]])
 
+        yield batch_inputs, batch_densities, batch_counts
 
-        yield batch_inputs, batch_counts, batch_densities
-
-def multi_data_loader_temporal(inputs, counts, densities, batch_size, sequence_size=None):
+def multi_data_loader_temporal(inputs, densities, counts, batch_size, sequence_size=None):
     
     num_domains = len(inputs)
     shape = inputs[0][0][0].shape

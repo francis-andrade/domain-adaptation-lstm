@@ -10,6 +10,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import pickle
 from load_data import load_data
+import joblib
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="Name used to save the log file.", type = str, default="webcamT")
@@ -38,18 +39,18 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 # Loading the randomly partition the amazon data set.
 time_start = time.time()
-data = load_data(10)
-
+logger.info('Started loading data')
+#data = load_data(10)
+data = joblib.load('temporary.npy')
 logger.info('Finished loading data')
 data_insts, data_densities, data_counts, num_insts = [], [], [], []
 
 for domain_id in data:
-    new_data_insts = []
-    new_data_densities = []
-    new_data_counts = []
+    domain_insts, domain_densities, domain_counts = [], [], []
+    
     new_num_insts = 0
     for time_id in data[domain_id].camera_times:
-        domain_insts, domain_densities, domain_counts = [], [], []
+        new_data_insts, new_data_densities, new_data_counts = [], [], []
         if new_num_insts > 10:
             break
         for frame_id in data[domain_id].camera_times[time_id].frames:
@@ -70,9 +71,9 @@ for domain_id in data:
             domain_densities += new_data_densities
             domain_counts += new_data_counts
 
-    data_insts.append(domain_insts)
-    data_counts.append(domain_counts)
-    data_densities.append(domain_densities)
+    data_insts.append(np.array(domain_insts))
+    data_counts.append(np.array(domain_counts))
+    data_densities.append(np.array(domain_densities))
     num_insts.append(new_num_insts)
 
 ##############################
@@ -102,12 +103,10 @@ for i in range(settings.NUM_DATASETS):
     for t in range(num_epochs):
             running_loss = 0.0
             if settings.TEMPORAL:
-                train_loader = utils.multi_data_loader_temporal(data_insts, data_counts, data_densities, batch_size, settings.SEQUENCE_SIZE)
+                train_loader = utils.multi_data_loader_temporal(data_insts, data_densities, data_counts, batch_size, settings.SEQUENCE_SIZE)
             else:
-                train_loader = utils.multi_data_loader(data_insts, data_counts, data_densities, batch_size)
+                train_loader = utils.multi_data_loader(data_insts, data_densities, data_counts, batch_size)
             for batch_insts, batch_densities, batch_counts in train_loader:
-                slabels = torch.ones(batch_size, requires_grad=False).type(torch.LongTensor).to(device)
-                tlabels = torch.zeros(batch_size, requires_grad=False).type(torch.LongTensor).to(device)
                 # Build source instances.
                 source_insts = []
                 source_counts = []
@@ -121,24 +120,28 @@ for i in range(settings.NUM_DATASETS):
                 tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float)).float().to(device)       
                 optimizer.zero_grad()
 
+                slabels = []
+                tlabels = []
+                for i in range(num_domains):
+                    slabels.append(torch.ones(len(source_insts[i]), requires_grad=False).type(torch.LongTensor).to(device))
+                    tlabels.append(torch.zeros(len(source_insts[i]), requires_grad=False).type(torch.LongTensor).to(device))
 
-            model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs)
-            logger.info("Ending MDAN")
-            # Compute prediction accuracy on multiple training sources.
-            losses = torch.stack([(torch.sum(model_densities[j] - source_densities[j])**2/(2*len(model_densities[j]))) for j in range(num_domains)])
-            domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels) +
-                                           F.nll_loss(tdomains[j], tlabels) for j in range(num_domains)])
-            # Different final loss function depending on different training modes.
-            if mode == "maxmin":
-                loss = torch.max(losses) + mu * torch.min(domain_losses)
-            elif mode == "dynamic":
-                loss = torch.log(torch.sum(torch.exp(gamma * (losses + mu * domain_losses)))) / gamma
-            else:
-                raise ValueError("No support for the training mode on madnNet: {}.".format(mode))
-            running_loss += loss.item()
-            loss.backward()
-            optimizer.step()
-            logger.info("Iteration {}, loss = {}".format(t, running_loss))
+                model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs)
+                # Compute prediction accuracy on multiple training sources.
+                losses = torch.stack([(torch.sum(model_densities[j] - source_densities[j])**2/(2*len(model_densities[j]))) for j in range(num_domains)])
+                domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels[j]) +
+                                           F.nll_loss(tdomains[j], tlabels[j]) for j in range(num_domains)])
+                # Different final loss function depending on different training modes.
+                if mode == "maxmin":
+                    loss = torch.max(losses) + mu * torch.min(domain_losses)
+                elif mode == "dynamic":
+                    loss = torch.log(torch.sum(torch.exp(gamma * (losses + mu * domain_losses)))) / gamma
+                else:
+                    raise ValueError("No support for the training mode on madnNet: {}.".format(mode))
+                running_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+    logger.info("Iteration {}, loss = {}".format(t, running_loss))
     time_end = time.time()
     # Test on other domains.
     # Build target instances.

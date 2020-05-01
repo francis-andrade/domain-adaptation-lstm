@@ -6,7 +6,7 @@ def get_dataset_directory():
     Auxiliary function that returns the dataset directory which is different according to the platform:
     Windows or Linux
     """
-    dataset_relative = "../../Dataset/WebCamT"
+    dataset_relative = "../../Dataset"
     if platform.system() == "Windows":
         return dataset_relative
     else:
@@ -16,13 +16,12 @@ def get_dataset_directory():
 DATASET_DIRECTORY = get_dataset_directory()
 USE_BIG_BUS = False
 NUM_DATASETS = 3
-#DATASETS = [403, 410, 511]
+DATASETS = [403, 410, 511]
 #DATASETS = [403]
-DATASETS = [164, 166, 170, 173, 181, 253, 398, 403, 410, 511, 551, 572, 691, 846, 928]
+#DATASETS = [164, 166, 170, 173, 181, 253, 398, 403, 410, 511, 551, 572, 691, 846, 928]
 IMAGE_NEW_SHAPE = (120, 176)
 IMAGE_ORIGINAL_SHAPE = (240, 352)
 TEMPORAL = False
 USE_GAUSSIAN = True
-COMPUTE_BOUNDING_BOX = False
 SEQUENCE_SIZE = 10
 BATCH_SIZE = 2

@@ -67,22 +67,30 @@ def readFramesFromVideo(filepath):
 
     return image_array
 
-def gauss2d(shape, center, sigmax, sigmay):
+def gauss2d(shape, center, sigmax, sigmay, out_shape=None):
     H, W = shape
-
-    x, y = np.array(range(W)), np.array(range(H))
+    if out_shape is None:
+        Ho = H
+        Wo = W
+    else:
+        Ho, Wo = out_shape
+    x, y = np.array(range(Wo)), np.array(range(Ho))
     x, y = np.meshgrid(x, y)
-    x, y = x.astype(float), y.astype(float)
-    x0, y0 = float(center[0]), float(center[1])
-    G = (1/(2*np.pi*sigmax*sigmay))*np.exp(-(1/2)*(((x - x0)/sigmax)**2 + ((y - y0)/sigmay)**2))  # Gaussian kernel centered in (x0, y0)
+    x, y = x.astype(float)/Wo, y.astype(float)/Ho
+    x0, y0 = float(center[0])/W, float(center[1])/H
+    if out_shape is not None:
+        sigmax, sigmay = sigmax / Wo, sigmay / Ho
+    G = np.exp(-(1/2)*(((x - x0)/sigmax)**2 + ((y - y0)/sigmay)**2))  # Gaussian kernel centered in (x0, y0)
     #return G
     return G/np.sum(G)  # normalized so it sums to 1
 
-def density_map(shape, centers, sigmas):
-    
-    D = np.zeros(shape)
+def density_map(shape, centers, sigmas, out_shape=None):
+    if out_shape is None:
+        D = np.zeros(shape)
+    else:
+        D = np.zeros(out_shape)
     for i, (x, y) in enumerate(centers):
-        D += gauss2d(shape, (x, y), sigmas[i][0], sigmas[i][1])
+        D += gauss2d(shape, (x, y), sigmas[i][0], sigmas[i][1], out_shape)
     #print(np.sum(D), len(centers))    
     return D
 
@@ -90,13 +98,13 @@ def multi_data_loader(inputs, counts, densities, batch_size):
     """
     Both inputs, counts and densities are list of numpy arrays, containing instances and labels from multiple sources.
     """
-    input_sizes = [data.shape[0] for data in inputs]
+    input_sizes = [len(data) for data in inputs]
     min_input_size = min(input_sizes)
     num_domains = len(inputs)
 
     indexes = []
     for i in range(num_domains):
-        indexes.append(np.arrange(len(inputs[i])))
+        indexes.append(np.arange(len(inputs[i])))
         np.random.shuffle(indexes[i])
 
     num_blocks = np.ceil(min_input_size / batch_size)

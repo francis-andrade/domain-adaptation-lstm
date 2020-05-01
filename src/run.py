@@ -40,6 +40,7 @@ torch.manual_seed(args.seed)
 time_start = time.time()
 data = load_data(10)
 
+logger.info('Finished loading data')
 data_insts, data_densities, data_counts, num_insts = [], [], [], []
 
 for domain_id in data:

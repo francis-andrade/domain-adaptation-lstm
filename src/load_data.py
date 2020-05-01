@@ -67,17 +67,18 @@ class FrameData:
     def computeBoundingBox(self, zoom_shape = settings.IMAGE_NEW_SHAPE):
 
         if settings.USE_GAUSSIAN:
-            self.drawGaussian()
+            self.drawGaussian(zoom_shape = settings.IMAGE_NEW_SHAPE)
         else:
             self.drawBoundingBox()
 
         if zoom_shape is not None:
-             self.density = zoom(self.density, (zoom_shape[0]/self.density.shape[0], zoom_shape[1]/self.density.shape[1]))
+             if not settings.USE_GAUSSIAN:
+                self.density = zoom(self.density, (zoom_shape[0]/self.density.shape[0], zoom_shape[1]/self.density.shape[1]))
              self.density = self.density.reshape(1, zoom_shape[0], zoom_shape[1])
              self.frame = zoom(self.frame, (zoom_shape[0]/self.frame.shape[0], zoom_shape[1]/self.frame.shape[1], 1))
              self.frame = self.frame.reshape(3, zoom_shape[0], zoom_shape[1])
     
-    def drawGaussian(self):
+    def drawGaussian(self, zoom_shape = settings.IMAGE_NEW_SHAPE):
         centers = []
         sigmas = []
         for vehicle in self.vehicles:
@@ -85,7 +86,7 @@ class FrameData:
             sigmas.append(vehicle.calculateSigma())
         #self.centers = centers
         #self.sigmas = sigmas
-        self.density = utils.density_map((self.frame.shape[0], self.frame.shape[1]), centers, sigmas)
+        self.density = utils.density_map((self.frame.shape[0], self.frame.shape[1]), centers, sigmas, zoom_shape)
         
     def drawBoundingBox(self):
 
@@ -143,7 +144,7 @@ class CameraTimeData:
            
 
 
-def load_data(max_videos_per_dataset = None, zoom_shape = settings.IMAGE_NEW_SHAPE):
+def load_data(max_videos_per_dataset = None, zoom_shape = settings.IMAGE_NEW_SHAPE, compute_bounding_box=True):
     webcamTDir = os.path.join(settings.DATASET_DIRECTORY, 'WebCamT')
     data = {}
     subdirs = [d for d in os.listdir(webcamTDir)]
@@ -191,7 +192,7 @@ def load_data(max_videos_per_dataset = None, zoom_shape = settings.IMAGE_NEW_SHA
                         break
                 [time_identifier, subsubdir_path] = video
                 camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)
-                if settings.COMPUTE_BOUNDING_BOX:
+                if compute_bounding_box:
                     camera.camera_times[time_identifier].computeBoundingBox(zoom_shape)
     return data
 
@@ -232,10 +233,18 @@ def load_data_densities(prefix_data, prefix_densities):
                 for time_id in data[domain_id].camera_times:
                     for frame_id in data[domain_id].camera_times[time_id].frames:
                         data[domain_id].camera_times[time_id].frames[frame_id].density = dens_dict[time_id][frame_id]
+
+def compute_densities(data):
+    for domain_id in data:
+        dens_dict = {}
+        for time_id in data[domain_id].camera_times:
+            data[domain_id].camera_times[time_id].computeBoundingBox(settings.IMAGE_NEW_SHAPE)
             
     
 
 if __name__ == '__main__':
-    pass
-    #data = load_data()
+    data = load_data(compute_bounding_box=False)
+    save_data(data, 'first')
+    compute_densities(data)
+    save_densities(data, 'first')
     #save_data_file('Frames_constant_variance')

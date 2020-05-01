@@ -2,20 +2,21 @@ from load_data import load_data
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
+import settings
 
 if __name__ == '__main__':
-    data = load_data(1, None)
+    data = load_data(1, settings.IMAGE_NEW_SHAPE)
     i = 0
     for domain in data:
         for ct in data[domain].camera_times:
             for id in data[domain].camera_times[ct].frames:
                 if data[domain].camera_times[ct].frames[id].frame is not None:
                     X = data[domain].camera_times[ct].frames[id].frame
-                    X = X.reshape(X.shape[0], X.shape[1], 3)
+                    X = X.reshape(X.shape[1], X.shape[2], 3)
                     cid = str(domain)+'/'+ str(ct)+'/'+str(data[domain].camera_times[ct].frames[id].id)
                     count = len(data[domain].camera_times[ct].frames[id].vehicles)
                     density = data[domain].camera_times[ct].frames[id].density
-                    density = density.reshape(density.shape[0], density.shape[1], 1)
+                    density = density.reshape(density.shape[1], density.shape[2], 1)
                     print('Image {}: cid={}, count={}, density_sum={:.3f}'.format(i, cid, count, np.sum(density)))
                     gs = gridspec.GridSpec(2, 2)
                     fig = plt.figure()

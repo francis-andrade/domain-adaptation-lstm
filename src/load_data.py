@@ -84,9 +84,7 @@ class FrameData:
         for vehicle in self.vehicles:
             centers.append(vehicle.calculateCenter())
             sigmas.append(vehicle.calculateSigma())
-        #self.centers = centers
-        #self.sigmas = sigmas
-        self.density = utils.density_map((self.frame.shape[0], self.frame.shape[1]), centers, sigmas, zoom_shape)
+        self.density = utils.density_map((self.original_shape[0], self.original_shape[1]), centers, sigmas, zoom_shape)
         
     def drawBoundingBox(self):
 
@@ -136,9 +134,10 @@ class CameraTimeData:
         '''
         for i in range(min(len(self.frames), len(frame_images))):
             self.frames[i+1].frame = frame_images[i]
+            self.frames[i+1].original_shape = frame_images[i].shape
             if zoom_shape is not None:
-                self.frame = zoom(self.frame, (zoom_shape[0]/self.frame.shape[0], zoom_shape[1]/self.frame.shape[1], 1))
-                self.frame = self.frame.reshape(3, zoom_shape[0], zoom_shape[1])
+                self.frames[i+1].frame = zoom(self.frames[i+1].frame, (zoom_shape[0]/self.frames[i+1].frame.shape[0], zoom_shape[1]/self.frames[i+1].frame.shape[1], 1))
+                self.frames[i+1].frame = self.frames[i+1].frame.reshape(3, zoom_shape[0], zoom_shape[1])
 
     
     def computeBoundingBox(self, zoom_shape = settings.IMAGE_NEW_SHAPE):
@@ -199,6 +198,8 @@ def load_data(max_videos_per_dataset = None, zoom_shape = settings.IMAGE_NEW_SHA
                 camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)
                 if compute_bounding_box:
                     camera.camera_times[time_identifier].computeBoundingBox(zoom_shape)
+               
+                
     return data
 
 def save_data(data, prefix):
@@ -226,7 +227,6 @@ def load_data_densities(prefix_data, prefix_densities):
     frame_directory = os.path.join(settings.DATASET_DIRECTORY, 'Frames')
     densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Densities')
     files = [d for d in os.listdir(frame_directory)]
-    print(files)
     for file in files:
         file_path = os.path.join(frame_directory, file)
         if (file[0:len(prefix_data)+1] == prefix_data + '_' and not os.path.isdir(file_path)):

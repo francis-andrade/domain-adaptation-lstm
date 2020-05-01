@@ -78,8 +78,8 @@ def gauss2d(shape, center, sigmax, sigmay, out_shape=None):
     x, y = np.meshgrid(x, y)
     x, y = x.astype(float)/Wo, y.astype(float)/Ho
     x0, y0 = float(center[0])/W, float(center[1])/H
-    if out_shape is not None:
-        sigmax, sigmay = sigmax / Wo, sigmay / Ho
+    
+    sigmax, sigmay = sigmax / W, sigmay / H
     G = np.exp(-(1/2)*(((x - x0)/sigmax)**2 + ((y - y0)/sigmay)**2))  # Gaussian kernel centered in (x0, y0)
     #return G
     return G/np.sum(G)  # normalized so it sums to 1
@@ -117,10 +117,12 @@ def multi_data_loader(inputs, densities, counts, batch_size):
 
         yield batch_inputs, batch_densities, batch_counts
 
+seq_inputs = []
 def multi_data_loader_temporal(inputs, densities, counts, batch_size, sequence_size=None):
-    
+    global seq_inputs
     num_domains = len(inputs)
-    shape = inputs[0][0][0].shape
+    input_shape = inputs[0][0][0].shape
+    density_shape = densities[0][0][0].shape
 
     if sequence_size is None:
         seq_inputs, seq_counts, seq_densities = inputs, counts, densities 
@@ -138,16 +140,22 @@ def multi_data_loader_temporal(inputs, densities, counts, batch_size, sequence_s
             seq_counts.append([])
             seq_densities.append([])
             for j in range(len(inputs[i])):
-                seq_inputs[i].append(inputs[i][j*sequence_size:(j+1)*sequence_size])
-                seq_counts[i].append(inputs[i][j*sequence_size:(j+1)*sequence_size])
-                seq_densities[i].append(inputs[i][j*sequence_size:(j+1)*sequence_size])
+                num_blocks = int(np.ceil(len(inputs[i][j]) / sequence_size))
+                for k in range(num_blocks):
+                    seq_inputs[i].append(inputs[i][j][k*sequence_size:(k+1)*sequence_size])
+                    seq_counts[i].append(counts[i][j][k*sequence_size:(k+1)*sequence_size])
+                    seq_densities[i].append(densities[i][j][k*sequence_size:(k+1)*sequence_size])
 
                 if len(seq_inputs[i][-1]) < sequence_size:
-                    while(len(seq_inputs[i][-1]) < sequence_size):
-                        seq_inputs[i][j].append(np.zeros(shape))
-                        seq_counts[i][j].append(np.zeros(shape))
-                        seq_densities[i][j].append(np.zeros(shape))
+                    diff = sequence_size - len(seq_inputs[i][-1])
+                    seq_inputs[i][-1] = np.concatenate((seq_inputs[i][-1] , np.zeros((diff,)+input_shape)))
+                    seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
+                    seq_densities[i][-1] = np.concatenate((seq_densities[i][-1] , np.zeros((diff,)+density_shape)))
+            
+            seq_inputs[i] = np.array(seq_inputs[i])
+            seq_counts[i] = np.array(seq_counts[i])
+            seq_densities[i] = np.array(seq_densities[i])
 
 
-    return multi_data_loader(seq_inputs, seq_counts, seq_densities)
+    return multi_data_loader(seq_inputs, seq_counts, seq_densities, batch_size)
     

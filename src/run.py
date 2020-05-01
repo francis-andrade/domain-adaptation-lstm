@@ -51,9 +51,9 @@ for domain_id in data:
     
     new_num_insts = 0
     for time_id in data[domain_id].camera_times:
-        new_data_insts, new_data_densities, new_data_counts = [], [], []
         if new_num_insts > 50:
             break
+        new_data_insts, new_data_densities, new_data_counts = [], [], []
         frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
         frame_ids.sort()
         for frame_id in frame_ids:
@@ -64,6 +64,8 @@ for domain_id in data:
                 new_data_densities.append(data[domain_id].camera_times[time_id].frames[frame_id].density)
                 new_data_counts.append(len(data[domain_id].camera_times[time_id].frames[frame_id].vehicles))
                 new_num_insts += 1
+            else:
+                print('None')
         
         if settings.TEMPORAL:
             domain_insts.append(new_data_insts)
@@ -95,7 +97,7 @@ for i in range(settings.NUM_DATASETS):
     
     # Train DannNet.
     if settings.TEMPORAL:
-        mdan = MDANTemporal(num_domains).to(device)
+        mdan = MDANTemporal(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
     else:
         mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
@@ -125,9 +127,9 @@ for i in range(settings.NUM_DATASETS):
 
                 slabels = []
                 tlabels = []
-                for i in range(num_domains):
-                    slabels.append(torch.ones(len(source_insts[i]), requires_grad=False).type(torch.LongTensor).to(device))
-                    tlabels.append(torch.zeros(len(source_insts[i]), requires_grad=False).type(torch.LongTensor).to(device))
+                for k in range(num_domains):
+                    slabels.append(torch.ones(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
+                    tlabels.append(torch.zeros(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
 
                 model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs)
                 # Compute prediction accuracy on multiple training sources.
@@ -160,6 +162,6 @@ for i in range(settings.NUM_DATASETS):
     preds_densities, preds_counts = mdan.inference(target_insts)
     mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
     mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
-    logger.info("{}:-\n\t Count MSE: {}, Density MSE: {} time used = {} seconds.".
+    logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {} time used = {} seconds.".
                 format(i, mse_count, mse_density, time_end - time_start))
     #results[data_name[i]] = pred_acc

@@ -7,7 +7,8 @@ import torch.nn.functional as F
 class MDANTemporal(MDANet):
 
     def __init__(self, num_domains, image_dim):
-        super(num_domains).__init__()
+        super(MDANTemporal, self).__init__(num_domains)
+        self.domains = nn.ModuleList([nn.Sequential(nn.Linear(1000, 10), nn.Linear(10, 2)) for _ in range(self.num_domains)])
         H, W = image_dim
         self.lstm_block = nn.LSTM(H*W, 100, num_layers=3, batch_first=True)
         self.final_layer = nn.Linear(100, 1)
@@ -34,19 +35,19 @@ class MDANTemporal(MDANet):
         if mask is not None:
             mask = mask.reshape(T*N, 1, H, W)
 
-        _, density = super().forward_cnn(mask)
+        _, density = super().forward_cnn(X, mask)
 
-        h, count_fcn, count_lstm = super().forward_lstm(X.shape, density, mask, lengths)
+        print(density.shape)
+        h, count_fcn, count_lstm = self.forward_lstm((N, T, C, H, W), density, mask, lengths)
        
         count = count_fcn + count_lstm  # predicted vehicle count
 
         return density, h, count
 
-    def forward_lstm(self, shape, h, mask=None, lengths = None):
+    def forward_lstm(self, shape, density, mask=None, lengths = None):
         N, T, C, H, W = shape
-        density = h.reshape(T, N, 1, H, W)  # predicted density map
 
-        h = h.reshape(T, N, -1)
+        h = density.clone().reshape(N, T, -1)
         count_fcn = h.sum(dim=2)
 
         if lengths is not None:
@@ -60,7 +61,7 @@ class MDANTemporal(MDANet):
             # undo the packing operation
             h, _ = torch.nn.utils.rnn.pad_packed_sequence(h, batch_first=True, total_length=T)
 
-        count_lstm = self.final_layer(h.reshape(T*N, -1)).reshape(T, N)
+        count_lstm = self.final_layer(h.reshape(T*N, -1)).reshape(N, T)
 
         return h, count_fcn, count_lstm
 

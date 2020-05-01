@@ -24,8 +24,8 @@ class GradientReversalLayer(torch.autograd.Function):
 
 class Flatten(nn.Module):
     def forward(self, x):
-        N, C, H, W = x.size() # read in N, C, H, W
-        return x.view(N, -1)  # "flatten" the C * H * W values into a single vector per image
+        batch_size = x.shape[0] # read in N, C, H, W
+        return x.reshape(batch_size, -1)  # "flatten" the C * H * W values into a single vector per image
 
 class MDANet(nn.Module):
     """

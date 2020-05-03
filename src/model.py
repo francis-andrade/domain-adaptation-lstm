@@ -26,6 +26,7 @@ class Flatten(nn.Module):
     def forward(self, x):
         batch_size = x.shape[0] # read in N, C, H, W
         return x.reshape(batch_size, -1)  # "flatten" the C * H * W values into a single vector per image
+        #return x.view(batch_size, -1)
 
 class MDANet(nn.Module):
     """

@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import pickle
 from load_data import load_data, load_data_densities, CameraData, CameraTimeData, FrameData, VehicleData
 import joblib
+import gc
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="Name used to save the log file.", type = str, default="webcamT")
@@ -79,7 +80,8 @@ for domain_id in data:
     data_densities.append(np.array(domain_densities))
 
 del data
-
+n_obj = gc.collect()
+print('Objects removed: ', n_obj)
 if settings.TEMPORAL:
     data_insts, data_densities, data_counts = utils.group_sequences(data_insts, data_densities, data_counts, settings.SEQUENCE_SIZE)
 
@@ -97,7 +99,7 @@ error_dicts = {}
 results = {}
 results['count'] = {}
 results['density'] = {}
-'''
+
 for i in range(settings.NUM_DATASETS):
     
     # Train DannNet.
@@ -137,7 +139,7 @@ for i in range(settings.NUM_DATASETS):
                 for k in range(num_domains):
                     slabels.append(torch.ones(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
                     tlabels.append(torch.zeros(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
-
+                
                 model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs)
                 # Compute prediction accuracy on multiple training sources.
                 losses = torch.stack([(torch.sum(model_densities[j] - source_densities[j])**2/(2*len(model_densities[j]))) for j in range(num_domains)])
@@ -153,6 +155,7 @@ for i in range(settings.NUM_DATASETS):
                 running_loss += loss.item()
                 loss.backward()
                 optimizer.step()
+                
     logger.info("Iteration {}, loss = {}".format(t, running_loss))
     time_end = time.time()
     # Test on other domains.
@@ -161,16 +164,21 @@ for i in range(settings.NUM_DATASETS):
     target_insts = np.array(data_insts[i], dtype=np.float)
     target_densities = np.array(data_densities[i], dtype=np.float)
     target_counts = np.array(data_counts[i], dtype=np.float)
-    mdan.eval()
-    target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
-    target_densities  = torch.tensor(target_densities).float()
-    target_counts  = torch.tensor(target_counts).float()
-    #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
-    preds_densities, preds_counts = mdan.inference(target_insts)
-    mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
-    mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
-    logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {} time used = {} seconds.".
+    
+    with torch.no_grad():
+        mdan.eval()
+        target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
+        target_densities  = torch.tensor(target_densities).float()
+        target_counts  = torch.tensor(target_counts).float()
+        #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
+        preds_densities, preds_counts = mdan.inference(target_insts)
+        mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
+        mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
+        logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {} time used = {} seconds.".
                 format(i, mse_count, mse_density, time_end - time_start))
-    results['density'][i] = mse_density
-    results['count'][i] = mse_count
-'''
+        results['density'][i] = mse_density
+        results['count'][i] = mse_count
+    
+    del train_loader, mdan, optimizer, source_insts, source_counts, source_densities, tinputs, target_insts, target_counts, target_densities, preds_densities, preds_counts, model_densities, model_counts, sdomains, tdomains, loss, domain_losses, slabels, tlabels
+    n_obj = gc.collect()
+    print('No. of objects removed: ', n_obj)

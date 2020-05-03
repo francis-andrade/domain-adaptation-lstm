@@ -251,8 +251,10 @@ def compute_densities(data):
     
 
 if __name__ == '__main__':
+    pass
+    '''
     data = load_data(compute_bounding_box=False)
     save_data(data, 'first')
     compute_densities(data)
     save_densities(data, 'first')
-    #save_data_file('Frames_constant_variance')
+    '''

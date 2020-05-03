@@ -20,13 +20,11 @@ parser.add_argument("-v", "--verbose", help="Verbose mode: True -- show training
                                             "not show training progress.", type=bool, default=True)
 parser.add_argument("-m", "--model", help="Choose a model to train: [mdan]",
                     type=str, default="mdan")
-# The experimental setting of using 5000 dimensions of features is according to the papers in the literature.
-parser.add_argument("-d", "--dimension", help="Number of features to be used in the experiment",
-                    type=int, default=5000)
+
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
+parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=10)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 # Compile and configure all the model parameters.
 args = parser.parse_args()
@@ -44,7 +42,7 @@ logger.info('Started loading data')
 #data = joblib.load('temporary.npy')
 data =  load_data_densities('first', 'first')
 logger.info('Finished loading data')
-data_insts, data_densities, data_counts, num_insts = [], [], [], []
+data_insts, data_densities, data_counts = [], [], []
 
 for domain_id in data:
     domain_insts, domain_densities, domain_counts = [], [], []
@@ -79,7 +77,11 @@ for domain_id in data:
     data_insts.append(np.array(domain_insts))
     data_counts.append(np.array(domain_counts))
     data_densities.append(np.array(domain_densities))
-    num_insts.append(new_num_insts)
+
+del data
+
+if settings.TEMPORAL:
+    data_insts, data_densities, data_counts = utils.group_sequences(data_insts, data_densities, data_counts, settings.SEQUENCE_SIZE)
 
 ##############################
 ################################
@@ -93,6 +95,9 @@ mode = args.mode
 logger.info("Training with domain adaptation using PyTorch madnNet: ")
 error_dicts = {}
 results = {}
+results['count'] = {}
+results['density'] = {}
+'''
 for i in range(settings.NUM_DATASETS):
     
     # Train DannNet.
@@ -107,11 +112,9 @@ for i in range(settings.NUM_DATASETS):
     logger.info("Start training...")
     for t in range(num_epochs):
             running_loss = 0.0
-            if settings.TEMPORAL:
-                train_loader = utils.multi_data_loader_temporal(data_insts, data_densities, data_counts, batch_size, settings.SEQUENCE_SIZE)
-            else:
-                train_loader = utils.multi_data_loader(data_insts, data_densities, data_counts, batch_size)
+            train_loader = utils.multi_data_loader(data_insts, data_densities, data_counts, batch_size)
             for batch_insts, batch_densities, batch_counts in train_loader:
+                logger.info("Starting batch")
                 # Build source instances.
                 source_insts = []
                 source_counts = []
@@ -168,4 +171,6 @@ for i in range(settings.NUM_DATASETS):
     mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
     logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {} time used = {} seconds.".
                 format(i, mse_count, mse_density, time_end - time_start))
-    #results[data_name[i]] = pred_acc
+    results['density'][i] = mse_density
+    results['count'][i] = mse_count
+'''

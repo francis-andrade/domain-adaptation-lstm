@@ -117,9 +117,8 @@ def multi_data_loader(inputs, densities, counts, batch_size):
 
         yield batch_inputs, batch_densities, batch_counts
 
-seq_inputs = []
-def multi_data_loader_temporal(inputs, densities, counts, batch_size, sequence_size=None):
-    global seq_inputs
+
+def group_sequences(inputs, densities, counts, sequence_size=None):
     num_domains = len(inputs)
     input_shape = inputs[0][0][0].shape
     density_shape = densities[0][0][0].shape
@@ -129,10 +128,11 @@ def multi_data_loader_temporal(inputs, densities, counts, batch_size, sequence_s
         max_lens = [np.max([len(inputs[i][j] for j in range(len(inputs[i])))]) for i in range(num_domains)]
         for i in range(num_domains):
             for j in range(len(inputs[i])):
-                if len(inputs[i][j]) < max_lens[i]:
-                    seq_inputs[i][j].append(np.zeros(shape))
-                    seq_counts[i][j].append(np.zeros(shape))
-                    seq_densities[i][j].append(np.zeros(shape))
+                if len(seq_inputs[i][j]) < max_lens[i]:
+                    diff = max_lens[i] - len(seq_inputs[i][j])
+                    seq_inputs[i][j] = np.concatenate((seq_inputs[i][j] , np.zeros((diff,)+input_shape)))
+                    seq_counts[i][j] = np.concatenate((seq_counts[i][j] , np.zeros((diff,))))
+                    seq_densities[i][j] = np.concatenate((seq_densities[i][j] , np.zeros((diff,)+density_shape)))
     else:
         seq_inputs, seq_counts, seq_densities = [], [], []
         for i in range(num_domains):
@@ -157,5 +157,5 @@ def multi_data_loader_temporal(inputs, densities, counts, batch_size, sequence_s
             seq_densities[i] = np.array(seq_densities[i])
 
 
-    return multi_data_loader(seq_inputs, seq_densities, seq_counts, batch_size)
+    return seq_inputs, seq_densities, seq_counts
     

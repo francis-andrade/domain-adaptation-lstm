@@ -25,7 +25,7 @@ parser.add_argument("-m", "--model", help="Choose a model to train: [mdan]",
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=10)
+parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 # Compile and configure all the model parameters.
 args = parser.parse_args()
@@ -90,7 +90,7 @@ if settings.TEMPORAL:
 num_epochs = args.epoch
 batch_size = args.batch_size
 num_domains = settings.NUM_DATASETS - 1
-lr = 0.00001
+lr = 0.0001
 mu = args.mu
 gamma = 10.0
 mode = args.mode
@@ -125,11 +125,11 @@ for i in range(settings.NUM_DATASETS):
                     if j != i:
                         source_insts.append(torch.from_numpy(np.array(batch_insts[j], dtype=np.float)).float().to(device))
                         source_counts.append(torch.from_numpy(np.array(batch_counts[j],  dtype=np.float)).float().to(device))
-                        density = np.array(batch_densities[j], dtype=np.float)
+                        densities = np.array(batch_densities[j], dtype=np.float)
                         if settings.TEMPORAL:
-                            N, T, C, H, W = density.shape 
-                            density = np.reshape(density, (N*T, 1, C, H, W))
-                        source_densities.append(torch.from_numpy(density).float().to(device))
+                            N, T, C, H, W = densities.shape 
+                            densities = np.reshape(densities, (N*T, C, H, W))
+                        source_densities.append(torch.from_numpy(densities).float().to(device))
 
                 tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float)).float().to(device)       
                 optimizer.zero_grad()
@@ -155,14 +155,20 @@ for i in range(settings.NUM_DATASETS):
                 running_loss += loss.item()
                 loss.backward()
                 optimizer.step()
+            
+            logger.info("Iteration {}, loss = {}".format(t, running_loss))
                 
-    logger.info("Iteration {}, loss = {}".format(t, running_loss))
+    
     time_end = time.time()
     # Test on other domains.
     # Build target instances.
-    target_idx = i
+
     target_insts = np.array(data_insts[i], dtype=np.float)
-    target_densities = np.array(data_densities[i], dtype=np.float)
+    densities = np.array(data_densities[i], dtype=np.float)
+    if settings.TEMPORAL:
+        N, T, C, H, W = densities.shape 
+        densities = np.reshape(densities, (N*T, C, H, W))
+    target_densities = densities
     target_counts = np.array(data_counts[i], dtype=np.float)
     
     with torch.no_grad():

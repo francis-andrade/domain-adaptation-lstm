@@ -94,11 +94,12 @@ def density_map(shape, centers, sigmas, out_shape=None):
         D += gauss2d(shape, (x, y), sigmas[i][0], sigmas[i][1], out_shape)
     #print(np.sum(D), len(centers))    
     return D
-
+batch_sequence_inputs = None
 def multi_data_loader(inputs, densities, counts, batch_size):
     """
     Both inputs, counts and densities are list of numpy arrays, containing instances and labels from multiple sources.
     """
+    global batch_sequence_inputs
     input_sizes = [len(data) for data in inputs]
     min_input_size = min(input_sizes)
     num_domains = len(inputs)
@@ -128,14 +129,14 @@ def multi_data_loader(inputs, densities, counts, batch_size):
                             for frame in inputs[i][indexes[i][k]]:
                                 if frame[0] == '0':
                                     diff = frame[1]
-                                    new_frame = np.zeros((diff,)+settings.IMAGE_NEW_SHAPE)
-                                    new_density = np.zeros((diff,)+settings.IMAGE_NEW_SHAPE)
+                                    for l in range(diff):
+                                        batch_sequence_inputs.append(np.zeros((3,)+settings.IMAGE_NEW_SHAPE))
+                                        batch_sequence_densities.append(np.zeros((1,)+settings.IMAGE_NEW_SHAPE))
                                 else:
                                     new_frame = load_structure(True, frame[0], frame[1], frame[2], 'first')
                                     new_density = load_structure(False, frame[0], frame[1], frame[2], 'first')
-                                batch_sequence_inputs.append(new_frame)
-                                batch_sequence_densities.append(new_density)
-
+                                    batch_sequence_inputs.append(new_frame)
+                                    batch_sequence_densities.append(new_density)
                             batch_inputs[i] = np.concatenate((batch_inputs[i], np.array([batch_sequence_inputs])))
                             batch_densities[i] = np.concatenate((batch_densities[i], np.array([batch_sequence_densities])))
                         else:
@@ -196,7 +197,9 @@ def group_sequences(inputs, densities, counts, sequence_size=None):
 
     return seq_inputs, seq_densities, seq_counts
 
+seq_inputs = None
 def group_sequences_load_multiple_files(inputs, counts, sequence_size = None):
+    global seq_inputs
     num_domains = len(inputs)
 
     if sequence_size is None:
@@ -204,21 +207,24 @@ def group_sequences_load_multiple_files(inputs, counts, sequence_size = None):
         max_lens = [np.max([len(inputs[i][j] for j in range(len(inputs[i])))]) for i in range(num_domains)]
         for i in range(num_domains):
             for j in range(len(inputs[i])):
-                if len(seq_inputs[i][j]) < max_lens[i]:
-                    diff = max_lens[i] - len(seq_inputs[i][j])
-                    seq_inputs[i][j].append(['0', diff])
+                if len(seq_inputs[i][-1]) < max_lens[i]:
+                    diff = max_lens[i] - len(seq_inputs[i][-1])
+                    seq_inputs[i][-1].append(['0', diff])
                     seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
     else:
         seq_inputs = []
+        seq_counts = []
         for i in range(num_domains):
+            seq_inputs.append([])
+            seq_counts.append([])
             for j in range(len(inputs[i])):
                 num_blocks = int(np.ceil(len(inputs[i][j]) / sequence_size))
                 for k in range(num_blocks):
-                    seq_inputs[i].append(inputs[i][j][k*sequence_size:(k+1)*sequence_size])
-                    seq_counts[i].append(counts[i][j][k*sequence_size:(k+1)*sequence_size])
+                    seq_inputs[i].append(inputs[i][j][k*sequence_size:min((k+1)*sequence_size, len(inputs[i][j]))])
+                    seq_counts[i].append(counts[i][j][k*sequence_size:min((k+1)*sequence_size, len(inputs[i][j]))])
                 if len(seq_inputs[i][-1]) < sequence_size:
                     diff = sequence_size - len(seq_inputs[i][-1])
-                    seq_inputs[i][j].append(['0', diff])
+                    seq_inputs[i][-1].append(['0', diff])
                     seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
         
             seq_counts[i] = np.array(seq_counts[i])

@@ -25,7 +25,7 @@ parser.add_argument("-m", "--model", help="Choose a model to train: [mdan]",
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=10)
+parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 # Compile and configure all the model parameters.
 args = parser.parse_args()
@@ -53,21 +53,21 @@ if not settings.LOAD_MULTIPLE_FILES:
     data_densities = []
 
 for domain_id in data:
-    print(domain_id)
+    #print(domain_id)
     domain_insts, domain_counts = [], []
     if not settings.LOAD_MULTIPLE_FILES:
         domain_densities = []
     
     new_num_insts = 0
     for time_id in data[domain_id].camera_times:
-        print('\t', time_id)
-        if new_num_insts > 20:
+        #print('\t', time_id)
+        if new_num_insts > 30:
             break
         new_data_insts, new_data_densities, new_data_counts = [], [], []
         frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
         frame_ids.sort()
         for frame_id in frame_ids:
-            if new_num_insts > 20:
+            if new_num_insts > 30:
                 break
             if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
                 if settings.LOAD_MULTIPLE_FILES:
@@ -214,7 +214,11 @@ for i in range(settings.NUM_DATASETS):
             train_loader = utils.multi_data_loader([data_insts[i]], None, [data_counts[i]], batch_size)
             for batch_insts, batch_densities, batch_counts in train_loader:
                 target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
-                target_densities = torch.from_numpy(np.array(batch_densities[0], dtype=np.float)).float().to(device)
+                densities = np.array(batch_densities[0], dtype=np.float)
+                if settings.TEMPORAL:
+                    N, T, C, H, W = densities.shape 
+                    densities = np.reshape(densities, (N*T, C, H, W))
+                target_densities = torch.from_numpy(np.array(densities[0], dtype=np.float)).float().to(device)
                 target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
                 preds_densities, preds_counts = mdan.inference(target_insts)
                 mse_density_sum = torch.sum(preds_densities - target_densities)**2

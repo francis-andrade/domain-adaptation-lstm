@@ -207,10 +207,71 @@ def save_data(data, prefix):
     Saves data to a file
     :param data: data we want to save in the file
     """
-    frame_directory = os.path.join(settings.DATASET_DIRECTORY, 'Frames')
+    data_directory = os.path.join(settings.DATASET_DIRECTORY, 'Data')
     for domain_id in data:
-        joblib.dump(data[domain_id], os.path.join(frame_directory,prefix+'_'+ str(domain_id)+'.npy'))
+        joblib.dump(data[domain_id], os.path.join(data_directory,prefix+'_'+ str(domain_id)+'.npy'))
 
+def save_data_multiple_files(data, prefix_data, prefix_frames, prefix_densities):
+    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Multiple_Files')
+    data_directory = os.path.join(multiple_files_directory, 'Data')
+    frames_directory = os.path.join(multiple_files_directory, 'Frames')
+    densities_directory = os.path.join(multiple_files_directory, 'Densities')
+
+    for domain_id in data:
+        str_id = str(domain_id)
+        domain_directory_frame = os.path.join(frames_directory, str_id)
+        domain_directory_density = os.path.join(densities_directory, str_id)
+
+        if not os.path.exists(domain_directory_frame):
+            os.makedirs(domain_directory_frame)
+        if not os.path.exists(domain_directory_density):
+            os.makedirs(domain_directory_density)
+        
+        for time_id in data[domain_id].camera_times:
+            str_id = str(time_id)
+            time_directory_frame = os.path.join(domain_directory_frame, str_id)
+            time_directory_density = os.path.join(domain_directory_density, str_id)
+
+            if not os.path.exists(time_directory_frame):
+                os.makedirs(time_directory_frame)
+            if not os.path.exists(time_directory_density):
+                os.makedirs(time_directory_density)
+            
+            for frame_id in data[domain_id].camera_times[time_id].frames:
+                frame = data[domain_id].camera_times[time_id].frames[frame_id].frame 
+                density = data[domain_id].camera_times[time_id].frames[frame_id].density
+                if frame is not None and density is not None:
+                    str_id = str(frame_id)
+                    frame_path = os.path.join(time_directory_frame, prefix_frames+'_'+str(str_id)+'.npy')
+                    joblib.dump(frame, frame_path)
+                    density_path = os.path.join(time_directory_density, prefix_densities+'_'+str(str_id)+'.npy')
+                    joblib.dump(density, density_path)
+                
+                    data[domain_id].camera_times[time_id].frames[frame_id].frame = 0
+                    data[domain_id].camera_times[time_id].frames[frame_id].density = 0
+        
+        data_path = os.path.join(data_directory, prefix_data+'_'+'.npy')
+        joblib.dump(data, data_path)
+
+def load_data_structure(prefix):
+    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Multiple_Files')
+    data_directory = os.path.join(multiple_files_directory, 'Data')
+    data_path = os.path.join(data_directory, prefix+'_'+'.npy')
+    data = joblib.load(data_path)
+    return data
+
+def load_structure(is_frame, domain_id, time_id, frame_id, prefix):
+    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Multiple_Files')
+    if is_frame:
+        directory = os.path.join(multiple_files_directory, 'Frames')
+    else:
+        directory = os.path.join(multiple_files_directory, 'Densities')
+    domain_directory = os.path.join(directory, str(domain_id))
+    time_directory = os.path.join(domain_directory, str(time_id))
+    frame_path = os.path.join(time_directory, prefix+'_'+str(frame_id)+'.npy')
+
+    structure = joblib.load(frame_path)
+    return structure
 
 def save_densities(data, prefix):
     densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Densities')
@@ -222,13 +283,13 @@ def save_densities(data, prefix):
                 dens_dict[time_id][frame_id] = data[domain_id].camera_times[time_id].frames[frame_id].density 
         joblib.dump(dens_dict, os.path.join(densities_directory, prefix+'_'+str(domain_id)+'.npy'))
 
-def load_data_densities(prefix_data, prefix_densities):
+def load_data_from_file(prefix_data, prefix_densities):
     data = {}
-    frame_directory = os.path.join(settings.DATASET_DIRECTORY, 'Frames')
+    data_directory = os.path.join(settings.DATASET_DIRECTORY, 'Data')
     densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Densities')
-    files = [d for d in os.listdir(frame_directory)]
+    files = [d for d in os.listdir(data_directory)]
     for file in files:
-        file_path = os.path.join(frame_directory, file)
+        file_path = os.path.join(data_directory, file)
         if (file[0:len(prefix_data)+1] == prefix_data + '_' and not os.path.isdir(file_path)):
             domain_id = file[len(prefix_data)+1:-4]
             if utils.isInteger(domain_id) and int(domain_id) in settings.DATASETS:
@@ -251,7 +312,8 @@ def compute_densities(data):
     
 
 if __name__ == '__main__':
-    pass
+    data = load_data_from_file('first', 'first')
+    save_data_multiple_files(data, 'first', 'first', 'first')
     '''
     data = load_data(compute_bounding_box=False)
     save_data(data, 'first')

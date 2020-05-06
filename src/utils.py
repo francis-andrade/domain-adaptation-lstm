@@ -3,6 +3,7 @@ import cv2
 import sys
 import numpy as np
 import settings
+from load_data import load_structure
 
 def isInteger(str):
     try:
@@ -111,14 +112,50 @@ def multi_data_loader(inputs, densities, counts, batch_size):
     for j in range(num_blocks):
         batch_inputs, batch_counts, batch_densities = [], [], []
         for i in range(num_domains):
-                batch_inputs.append(inputs[i][indexes[i][j*batch_size:(j+1)*batch_size]])
-                batch_counts.append(counts[i][indexes[i][j*batch_size:(j+1)*batch_size]])
-                batch_densities.append(densities[i][indexes[i][j*batch_size:(j+1)*batch_size]])
+                if settings.LOAD_MULTIPLE_FILES:
+                    batch_counts.append(counts[i][indexes[i][j*batch_size:(j+1)*batch_size]])
+                    if settings.TEMPORAL:
+                        sequence_size = len(inputs[i][0])
+                        batch_inputs.append(np.zeros((0,sequence_size)+settings.IMAGE_NEW_SHAPE))
+                        batch_densities.append(np.zeros((0,sequence_size)+settings.IMAGE_NEW_SHAPE))
+                    else:
+                        batch_inputs.append(np.zeros((0,)+settings.IMAGE_NEW_SHAPE))
+                        batch_densities.append(np.zeros((0,)+settings.IMAGE_NEW_SHAPE))
+                    for k in range(j*batch_size, (j+1)*batch_size):
+                        if settings.TEMPORAL:
+                            batch_sequence_inputs = []
+                            batch_sequence_densities = []
+                            for frame in inputs[i][indexes[i][k]]:
+                                if frame[0] == '0':
+                                    diff = frame[1]
+                                    new_frame = np.zeros((diff,)+settings.IMAGE_NEW_SHAPE)
+                                    new_density = np.zeros((diff,)+settings.IMAGE_NEW_SHAPE)
+                                else:
+                                    new_frame = load_structure(True, frame[0], frame[1], frame[2], 'first')
+                                    new_density = load_structure(False, frame[0], frame[1], frame[2], 'first')
+                                batch_sequence_inputs.append(new_frame)
+                                batch_sequence_densities.append(new_density)
+
+                            batch_inputs[i] = np.concatenate((batch_inputs[i], np.array([batch_sequence_inputs])))
+                            batch_densities[i] = np.concatenate((batch_densities[i], np.array([batch_sequence_densities])))
+                        else:
+                            frame = inputs[i][indexes[i][k]]
+                            new_frame = np.array([load_structure(True, frame[0], frame[1], frame[2], 'first')])
+                            new_density = np.array([load_structure(False, frame[0], frame[1], frame[2], 'first')])
+                            batch_inputs[i] = np.concatenate((batch_inputs[i], np.array([new_frame])))
+                            batch_densities[i] = np.concatenate((batch_densities[i], np.array([new_density])))
+                    
+                else:
+                    batch_inputs.append(inputs[i][indexes[i][j*batch_size:(j+1)*batch_size]])
+                    batch_counts.append(counts[i][indexes[i][j*batch_size:(j+1)*batch_size]])
+                    batch_densities.append(densities[i][indexes[i][j*batch_size:(j+1)*batch_size]])
+
 
         yield batch_inputs, batch_densities, batch_counts
 
 
 def group_sequences(inputs, densities, counts, sequence_size=None):
+
     num_domains = len(inputs)
     input_shape = inputs[0][0][0].shape
     density_shape = densities[0][0][0].shape
@@ -128,11 +165,11 @@ def group_sequences(inputs, densities, counts, sequence_size=None):
         max_lens = [np.max([len(inputs[i][j] for j in range(len(inputs[i])))]) for i in range(num_domains)]
         for i in range(num_domains):
             for j in range(len(inputs[i])):
-                if len(seq_inputs[i][j]) < max_lens[i]:
-                    diff = max_lens[i] - len(seq_inputs[i][j])
-                    seq_inputs[i][j] = np.concatenate((seq_inputs[i][j] , np.zeros((diff,)+input_shape)))
-                    seq_counts[i][j] = np.concatenate((seq_counts[i][j] , np.zeros((diff,))))
-                    seq_densities[i][j] = np.concatenate((seq_densities[i][j] , np.zeros((diff,)+density_shape)))
+                if len(seq_inputs[i][-1]) < max_lens[i]:
+                    diff = max_lens[i] - len(seq_inputs[i][-1])
+                    seq_inputs[i][-1] = np.concatenate((seq_inputs[i][-1] , np.zeros((diff,)+input_shape)))
+                    seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
+                    seq_densities[i][-1] = np.concatenate((seq_densities[i][-1] , np.zeros((diff,)+density_shape)))
     else:
         seq_inputs, seq_counts, seq_densities = [], [], []
         for i in range(num_domains):
@@ -158,4 +195,32 @@ def group_sequences(inputs, densities, counts, sequence_size=None):
 
 
     return seq_inputs, seq_densities, seq_counts
+
+def group_sequences_load_multiple_files(inputs, counts, sequence_size = None):
+    num_domains = len(inputs)
+
+    if sequence_size is None:
+        seq_inputs, seq_counts = inputs, counts
+        max_lens = [np.max([len(inputs[i][j] for j in range(len(inputs[i])))]) for i in range(num_domains)]
+        for i in range(num_domains):
+            for j in range(len(inputs[i])):
+                if len(seq_inputs[i][j]) < max_lens[i]:
+                    diff = max_lens[i] - len(seq_inputs[i][j])
+                    seq_inputs[i][j].append(['0', diff])
+                    seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
+    else:
+        seq_inputs = []
+        for i in range(num_domains):
+            for j in range(len(inputs[i])):
+                num_blocks = int(np.ceil(len(inputs[i][j]) / sequence_size))
+                for k in range(num_blocks):
+                    seq_inputs[i].append(inputs[i][j][k*sequence_size:(k+1)*sequence_size])
+                    seq_counts[i].append(counts[i][j][k*sequence_size:(k+1)*sequence_size])
+                if len(seq_inputs[i][-1]) < sequence_size:
+                    diff = sequence_size - len(seq_inputs[i][-1])
+                    seq_inputs[i][j].append(['0', diff])
+                    seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
+        
+            seq_counts[i] = np.array(seq_counts[i])
     
+    return seq_inputs, seq_counts

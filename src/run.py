@@ -9,7 +9,7 @@ from model_temporal import MDANTemporal
 import torch.optim as optim
 import torch.nn.functional as F
 import pickle
-from load_data import load_data, load_data_densities, CameraData, CameraTimeData, FrameData, VehicleData
+from load_data import load_data, load_data_from_file, load_data_structure, CameraData, CameraTimeData, FrameData, VehicleData
 import joblib
 import gc
 
@@ -25,7 +25,7 @@ parser.add_argument("-m", "--model", help="Choose a model to train: [mdan]",
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
+parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=10)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 # Compile and configure all the model parameters.
 args = parser.parse_args()
@@ -41,26 +41,40 @@ time_start = time.time()
 logger.info('Started loading data')
 #data = load_data(10)
 #data = joblib.load('temporary.npy')
-data =  load_data_densities('first', 'first')
+if settings.LOAD_MULTIPLE_FILES:
+    data = load_data_structure('first')
+else:
+    data =  load_data_from_file('first', 'first')
 logger.info('Finished loading data')
-data_insts, data_densities, data_counts = [], [], []
+
+data_insts, data_counts = [], []
+
+if not settings.LOAD_MULTIPLE_FILES:
+    data_densities = []
 
 for domain_id in data:
-    domain_insts, domain_densities, domain_counts = [], [], []
+    print(domain_id)
+    domain_insts, domain_counts = [], []
+    if not settings.LOAD_MULTIPLE_FILES:
+        domain_densities = []
     
     new_num_insts = 0
     for time_id in data[domain_id].camera_times:
-        if new_num_insts > 50:
+        print('\t', time_id)
+        if new_num_insts > 20:
             break
         new_data_insts, new_data_densities, new_data_counts = [], [], []
         frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
         frame_ids.sort()
         for frame_id in frame_ids:
-            if new_num_insts > 50:
+            if new_num_insts > 20:
                 break
             if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
-                new_data_insts.append(data[domain_id].camera_times[time_id].frames[frame_id].frame / 255)
-                new_data_densities.append(data[domain_id].camera_times[time_id].frames[frame_id].density)
+                if settings.LOAD_MULTIPLE_FILES:
+                    new_data_insts.append([domain_id, time_id, frame_id])
+                else:
+                    new_data_insts.append(data[domain_id].camera_times[time_id].frames[frame_id].frame / 255)
+                    new_data_densities.append(data[domain_id].camera_times[time_id].frames[frame_id].density)
                 new_data_counts.append(len(data[domain_id].camera_times[time_id].frames[frame_id].vehicles))
                 new_num_insts += 1
             else:
@@ -68,22 +82,40 @@ for domain_id in data:
         
         if settings.TEMPORAL:
             domain_insts.append(new_data_insts)
-            domain_densities.append(new_data_densities)
             domain_counts.append(new_data_counts)
+            if not settings.LOAD_MULTIPLE_FILES:      
+                domain_densities.append(new_data_densities)
+                
         else:
             domain_insts += new_data_insts
-            domain_densities += new_data_densities
             domain_counts += new_data_counts
+            if not settings.LOAD_MULTIPLE_FILES: 
+                domain_densities += new_data_densities
 
-    data_insts.append(np.array(domain_insts))
-    data_counts.append(np.array(domain_counts))
-    data_densities.append(np.array(domain_densities))
+    data_insts.append(domain_insts)
+    data_counts.append(domain_counts)
+    if not settings.LOAD_MULTIPLE_FILES:
+        data_densities.append(domain_densities)
 
-del data
+if not settings.LOAD_MULTIPLE_FILES:
+    del data
+    print('Deleted data')
+
+
+for domain_id in range(len(data_insts)):
+    if not settings.LOAD_MULTIPLE_FILES:
+        data_insts[domain_id] = np.array(data_insts[domain_id])
+        data_densities[domain_id] = np.array(data_densities[domain_id])
+    data_counts[domain_id] = np.array(data_counts[domain_id])
+
 n_obj = gc.collect()
 print('Objects removed: ', n_obj)
+
 if settings.TEMPORAL:
-    data_insts, data_densities, data_counts = utils.group_sequences(data_insts, data_densities, data_counts, settings.SEQUENCE_SIZE)
+    if settings.LOAD_MULTIPLE_FILES:
+        data_insts, data_counts = utils.group_sequences_load_multiple_files(data_insts, data_counts, settings.SEQUENCE_SIZE)
+    else:
+        data_insts, data_densities, data_counts = utils.group_sequences(data_insts, data_densities, data_counts, settings.SEQUENCE_SIZE)
 
 ##############################
 ################################
@@ -114,7 +146,10 @@ for i in range(settings.NUM_DATASETS):
     logger.info("Start training...")
     for t in range(num_epochs):
             running_loss = 0.0
-            train_loader = utils.multi_data_loader(data_insts, data_densities, data_counts, batch_size)
+            if settings.LOAD_MULTIPLE_FILES:
+                train_loader = utils.multi_data_loader(data_insts, None, data_counts, batch_size)
+            else:
+                train_loader = utils.multi_data_loader(data_insts, data_densities, data_counts, batch_size)
             for batch_insts, batch_densities, batch_counts in train_loader:
                 logger.info("Starting batch")
                 # Build source instances.

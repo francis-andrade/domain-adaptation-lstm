@@ -198,23 +198,38 @@ for i in range(settings.NUM_DATASETS):
     # Test on other domains.
     # Build target instances.
 
-    target_insts = np.array(data_insts[i], dtype=np.float)
-    densities = np.array(data_densities[i], dtype=np.float)
-    if settings.TEMPORAL:
-        N, T, C, H, W = densities.shape 
-        densities = np.reshape(densities, (N*T, C, H, W))
-    target_densities = densities
-    target_counts = np.array(data_counts[i], dtype=np.float)
+    if not settings.LOAD_MULTIPLE_FILES:
+        target_counts = np.array(data_counts[i], dtype=np.float)
+        target_insts = np.array(data_insts[i], dtype=np.float)
+        densities = np.array(data_densities[i], dtype=np.float)
+        if settings.TEMPORAL:
+            N, T, C, H, W = densities.shape 
+            densities = np.reshape(densities, (N*T, C, H, W))
+        target_densities = densities
+
     
     with torch.no_grad():
         mdan.eval()
-        target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
-        target_densities  = torch.tensor(target_densities).float()
-        target_counts  = torch.tensor(target_counts).float()
-        #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
-        preds_densities, preds_counts = mdan.inference(target_insts)
-        mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
-        mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
+        if settings.LOAD_MULTIPLE_FILES:
+            train_loader = utils.multi_data_loader([data_insts[i]], None, [data_counts[i]], batch_size)
+            for batch_insts, batch_densities, batch_counts in train_loader:
+                target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
+                target_densities = torch.from_numpy(np.array(batch_densities[0], dtype=np.float)).float().to(device)
+                target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
+                preds_densities, preds_counts = mdan.inference(target_insts)
+                mse_density_sum = torch.sum(preds_densities - target_densities)**2
+                mse_count_sum = torch.sum(preds_counts - target_counts)**2
+            mse_density = mse_density_sum / len(data_insts[i])
+            mse_count = mse_count_sum / len(data_insts[i])
+            #TODO: CHECK THIS FORMULA FOR TEMPORAL
+        else:
+            target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
+            target_densities  = torch.tensor(target_densities).float()
+            target_counts  = torch.tensor(target_counts).float()
+            #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
+            preds_densities, preds_counts = mdan.inference(target_insts)
+            mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
+            mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
         logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {} time used = {} seconds.".
                 format(i, mse_count, mse_density, time_end - time_start))
         results['density'][i] = mse_density

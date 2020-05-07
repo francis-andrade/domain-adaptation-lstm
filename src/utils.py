@@ -94,12 +94,11 @@ def density_map(shape, centers, sigmas, out_shape=None):
         D += gauss2d(shape, (x, y), sigmas[i][0], sigmas[i][1], out_shape)
     #print(np.sum(D), len(centers))    
     return D
-batch_sequence_inputs = None
+
 def multi_data_loader(inputs, densities, counts, batch_size):
     """
     Both inputs, counts and densities are list of numpy arrays, containing instances and labels from multiple sources.
     """
-    global batch_sequence_inputs
     input_sizes = [len(data) for data in inputs]
     min_input_size = min(input_sizes)
     num_domains = len(inputs)
@@ -109,7 +108,7 @@ def multi_data_loader(inputs, densities, counts, batch_size):
         indexes.append(np.arange(len(inputs[i])))
         np.random.shuffle(indexes[i])
 
-    num_blocks = int(np.ceil(float(min_input_size) / batch_size))
+    num_blocks = int(np.floor(float(min_input_size) / batch_size))
     for j in range(num_blocks):
         batch_inputs, batch_counts, batch_densities = [], [], []
         for i in range(num_domains):
@@ -147,9 +146,9 @@ def multi_data_loader(inputs, densities, counts, batch_size):
                             batch_densities[i] = np.concatenate((batch_densities[i], new_density))
                     
                 else:
-                    batch_inputs.append(inputs[i][indexes[i][j*batch_size:(j+1)*batch_size]])
-                    batch_counts.append(counts[i][indexes[i][j*batch_size:(j+1)*batch_size]])
-                    batch_densities.append(densities[i][indexes[i][j*batch_size:(j+1)*batch_size]])
+                    batch_inputs.append(inputs[i][indexes[i][j*batch_size:min((j+1)*batch_size, min_input_size)]])
+                    batch_counts.append(counts[i][indexes[i][j*batch_size:min((j+1)*batch_size, min_input_size)]])
+                    batch_densities.append(densities[i][indexes[i][j*batch_size:min((j+1)*batch_size, min_input_size)]])
 
 
         yield batch_inputs, batch_densities, batch_counts
@@ -197,9 +196,8 @@ def group_sequences(inputs, densities, counts, sequence_size=None):
 
     return seq_inputs, seq_densities, seq_counts
 
-seq_inputs = None
+
 def group_sequences_load_multiple_files(inputs, counts, sequence_size = None):
-    global seq_inputs
     num_domains = len(inputs)
 
     if sequence_size is None:
@@ -230,3 +228,83 @@ def group_sequences_load_multiple_files(inputs, counts, sequence_size = None):
             seq_counts[i] = np.array(seq_counts[i])
     
     return seq_inputs, seq_counts
+
+def rotate(size, coordinate_x, coordinate_y, angle):
+    """
+    Function that given a set of coordinates of a cell square matrix, returns the new coordinates of that cell after a rotation has been applied.  
+    
+    Args:
+        size: size of the matrix
+        coordinate_x: X coordinate of the cell
+        coordinate_y: Y coordinate of the cell
+        angle: Angle of the rotation. Must be in [90, 180, 270]
+    
+    Returns:
+        New coordinates of the cell to which a rotation has been applied.
+    Raises:
+        ValueError: If angle doesn't belong to [90, 180, 270]
+    """
+    if angle == 90:
+        return coordinate_y, size - 1 - coordinate_x
+    elif angle == 180:
+        return size - 1 - coordinate_x, size - 1 - coordinate_y
+    elif angle == 270:
+        return size - 1 - coordinate_y, coordinate_x
+    else:
+        raise ValueError('The angle of a rotation can only be one of [90, 180, 270]')
+
+
+def symmetric(size, coordinate_x, coordinate_y, angle_axis):
+    """
+    Function that given a set of coordinates of a cell square matrix, returns the new coordinates of that cell after a symmetry has been applied.  
+    
+    Args:
+        size: size of the matrix
+        coordinate_x: X coordinate of the cell
+        coordinate_y: Y coordinate of the cell
+        angle: Angle of the rotation. Must be in [0, 45, 90, 135]
+    
+    Returns:
+        New coordinates of the cell to which a symmetry has been applied.
+    Raises:
+        ValueError: If angle doesn't belong to [0, 45, 90, 135]
+    """
+    if angle_axis == 0:
+        return coordinate_x, size - 1 - coordinate_y
+    elif angle_axis == 45:
+        return coordinate_y, coordinate_x
+    elif angle_axis == 90:
+        return size - 1 - coordinate_x, coordinate_y
+    elif angle_axis == 135:
+        return size - 1 - coordinate_y, size - 1 - coordinate_x
+    else:
+        raise ValueError('The angle of a symmetry can only be one of [0, 45, 90, 135]')
+
+
+def transform_matrix(matrix, function, angle):
+    """
+    Function that applies a transformation (rotation or symmetry) to a matrix  
+    
+    Args:
+        matrix: Matrix to be transformed
+        function: Function that defines the transformation to apply (rotate or symmetry)
+        angle: Angle of the transformation
+    
+    Returns:
+        New matrix to which the original matrix was transformed to.
+    Raises:
+        ValueError: If matrix is empty (i.e. has size 0)
+        ValueError: If matrix is not square
+    """
+    if len(matrix) == 0:
+        raise ValueError('The matrix must have size bigger than 0')
+    elif not(len(matrix) == len(matrix[0])):
+        raise ValueError('The matrix must be square')
+
+    size = len(matrix)
+    new_matrix = np.empty((size, size), dtype = 'float')
+    for coordinate_y in range(len(matrix)):
+        for coordinate_x in range(len(matrix[coordinate_y])):
+            new_x, new_y = function(size, coordinate_x, coordinate_y, angle)
+            new_matrix[new_y][new_x] = matrix[coordinate_y][coordinate_x]
+    return new_matrix    

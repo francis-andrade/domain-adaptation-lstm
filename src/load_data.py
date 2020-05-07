@@ -284,15 +284,19 @@ def load_data_structure(prefix):
     data = joblib.load(data_path)
     return data
 
-def load_structure(is_frame, domain_id, time_id, frame_id, prefix):
+def load_structure(is_frame, domain_id, time_id, frame_id, prefix, data_augment = None):
     multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Multiple_Files')
     if is_frame:
         directory = os.path.join(multiple_files_directory, 'Frames')
     else:
         directory = os.path.join(multiple_files_directory, 'Densities')
+    if data_augment is None or data_augment == 'None':
+        aug_prefix = ''
+    else:
+        aug_prefix = '_'+data_augment
     domain_directory = os.path.join(directory, str(domain_id))
     time_directory = os.path.join(domain_directory, str(time_id))
-    frame_path = os.path.join(time_directory, prefix+'_'+str(frame_id)+'.npy')
+    frame_path = os.path.join(time_directory, prefix+'_'+str(frame_id)+aug_prefix+'.npy')
 
     structure = joblib.load(frame_path)
     return structure
@@ -304,7 +308,14 @@ def save_densities(data, prefix):
         for time_id in data[domain_id].camera_times:
             dens_dict[time_id] = {}
             for frame_id in data[domain_id].camera_times[time_id].frames:
-                dens_dict[time_id][frame_id] = data[domain_id].camera_times[time_id].frames[frame_id].density 
+                dens_dict[time_id][frame_id] = {}
+                frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
+                dens_dict[time_id][frame_id]['None'] = frame_data.density 
+                if settings.USE_DATA_AUGMENTATION:
+                    densities_aug = data[domain_id].camera_times[time_id].frames[frame_id].density_augmentation
+                    for aug_key in densities_aug:
+                        dens_dict[time_id][frame_id][aug_key] = frame_data.density_augmentation[aug_key]
+
         joblib.dump(dens_dict, os.path.join(densities_directory, prefix+'_'+str(domain_id)+'.npy'))
 
 def load_data_from_file(prefix_data, prefix_densities):
@@ -323,7 +334,14 @@ def load_data_from_file(prefix_data, prefix_densities):
                 dens_dict = joblib.load(densities_file)
                 for time_id in dens_dict:
                     for frame_id in dens_dict[time_id]:
-                        data[domain_id].camera_times[time_id].frames[frame_id].density = dens_dict[time_id][frame_id]
+                        frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
+                        frame_data.density = dens_dict[time_id][frame_id]['None']
+                        if settings.USE_DATA_AUGMENTATION:
+                            frame_data.density_augmentation = {}
+                            for aug_key in dens_dict[time_id][frame_id]:
+                                if aug_key != 'None':
+                                    frame_data.density_augmentation[aug_key] = dens_dict[time_id][frame_id][aug_key]
+
     
     return data
 

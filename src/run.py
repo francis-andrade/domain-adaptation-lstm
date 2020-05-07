@@ -70,12 +70,26 @@ for domain_id in data:
             #if new_num_insts > 30:
             #    break
             if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
+                frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
                 if settings.LOAD_MULTIPLE_FILES:
-                    new_data_insts.append([domain_id, time_id, frame_id])
+                    new_data_insts.append([domain_id, time_id, frame_id, 'None'])
+                    if settings.USE_DATA_AUGMENTATION:
+                        for aug_key in frame_data.augmentation:
+                            new_data_insts.append([domain_id, time_id, aug_key])
                 else:
-                    new_data_insts.append(data[domain_id].camera_times[time_id].frames[frame_id].frame / 255)
-                    new_data_densities.append(data[domain_id].camera_times[time_id].frames[frame_id].density)
-                new_data_counts.append(len(data[domain_id].camera_times[time_id].frames[frame_id].vehicles))
+                    new_data_insts.append(frame_data.frame / 255)
+                    new_data_densities.append(frame_data.density)
+                    if settings.USE_DATA_AUGMENTATION:
+                        for aug_key in frame_data.augmentation:
+                            new_data_insts.append(frame_data.augmentation[aug_key]/255)
+                            new_data_insts.append(frame_data.density_augmentation[aug_key])
+
+                no_vehicles = len(frame_data.vehicles)
+                new_data_counts.append(no_vehicles)
+                if settings.USE_DATA_AUGMENTATION:
+                    for aug_key in frame_data.augmentation:
+                        new_data_counts.append(no_vehicles)
+                
                 new_num_insts += 1
             else:
                 print('None')

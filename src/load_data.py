@@ -76,6 +76,11 @@ class FrameData:
              if not settings.USE_GAUSSIAN:
                 self.density = zoom(self.density, (zoom_shape[0]/self.density.shape[0], zoom_shape[1]/self.density.shape[1]))
              self.density = self.density.reshape(1, zoom_shape[0], zoom_shape[1])
+             if settings.USE_DATA_AUGMENTATION:
+                density_r180 = utils.transform_matrix_channels(self.density, utils.rotate, 180)
+                density_s0 = utils.transform_matrix_channels(self.density, utils.symmetric, 0)
+                density_s90 = utils.transform_matrix_channels(self.density, utils.symmetric, 90)
+                self.density_augmentation = {'r180': density_r180, 's0': density_s0, 's90': density_s90}
              
     
     def drawGaussian(self, zoom_shape = settings.IMAGE_NEW_SHAPE):
@@ -138,6 +143,11 @@ class CameraTimeData:
             if zoom_shape is not None:
                 self.frames[i+1].frame = zoom(self.frames[i+1].frame, (zoom_shape[0]/self.frames[i+1].frame.shape[0], zoom_shape[1]/self.frames[i+1].frame.shape[1], 1))
                 self.frames[i+1].frame = self.frames[i+1].frame.reshape(3, zoom_shape[0], zoom_shape[1])
+                if settings.USE_DATA_AUGMENTATION:
+                    frame_r180 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.rotate, 180)
+                    frame_s0 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 0)
+                    frame_s90 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 90)
+                    self.frames[i+1].augmentation = {'r180': frame_r180, 's0': frame_s0, 's90': frame_s90}
 
     
     def computeBoundingBox(self, zoom_shape = settings.IMAGE_NEW_SHAPE):
@@ -246,10 +256,24 @@ def save_data_multiple_files(data, prefix_data, prefix_frames, prefix_densities)
                     joblib.dump(frame, frame_path)
                     density_path = os.path.join(time_directory_density, prefix_densities+'_'+str(str_id)+'.npy')
                     joblib.dump(density, density_path)
-                
+
                     data[domain_id].camera_times[time_id].frames[frame_id].frame = 0
                     data[domain_id].camera_times[time_id].frames[frame_id].density = 0
-        
+
+                    if settings.USE_DATA_AUGMENTATION:
+                        frames_aug = data[domain_id].camera_times[time_id].frames[frame_id].augmentation
+                        densities_aug = data[domain_id].camera_times[time_id].frames[frame_id].density_augmentation
+                        for frame_aug_key in frames_aug:
+                            frame_aug = frames_aug[frame_aug_key]
+                            density_aug = densities_aug[frame_aug_key]
+                            frame_path = os.path.join(time_directory_frame, prefix_frames+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
+                            joblib.dump(frame, frame_path)
+                            density_path = os.path.join(time_directory_density, prefix_densities+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
+                            joblib.dump(density, density_path)
+                            frames_aug[frame_aug_key] = 0
+                            densities_aug[frame_aug_key] = 0
+
+
         data_path = os.path.join(data_directory, prefix_data+'_'+'.npy')
         joblib.dump(data, data_path)
 

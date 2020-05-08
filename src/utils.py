@@ -132,16 +132,16 @@ def multi_data_loader(inputs, densities, counts, batch_size):
                                         batch_sequence_inputs.append(np.zeros((3,)+settings.IMAGE_NEW_SHAPE))
                                         batch_sequence_densities.append(np.zeros((1,)+settings.IMAGE_NEW_SHAPE))
                                 else:
-                                    new_frame = load_structure(True, frame[0], frame[1], frame[2], 'first')
-                                    new_density = load_structure(False, frame[0], frame[1], frame[2], 'first')
+                                    new_frame = load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])
+                                    new_density = load_structure(False, frame[0], frame[1], frame[2], 'first', frame[3])
                                     batch_sequence_inputs.append(new_frame)
                                     batch_sequence_densities.append(new_density)
                             batch_inputs[i] = np.concatenate((batch_inputs[i], np.array([batch_sequence_inputs])))
                             batch_densities[i] = np.concatenate((batch_densities[i], np.array([batch_sequence_densities])))
                         else:
                             frame = inputs[i][indexes[i][k]]
-                            new_frame = np.array([load_structure(True, frame[0], frame[1], frame[2], 'first')])
-                            new_density = np.array([load_structure(False, frame[0], frame[1], frame[2], 'first')])
+                            new_frame = np.array([load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])])
+                            new_density = np.array([load_structure(False, frame[0], frame[1], frame[2], 'first', frame[3])])
                             batch_inputs[i] = np.concatenate((batch_inputs[i], new_frame))
                             batch_densities[i] = np.concatenate((batch_densities[i], new_density))
                     

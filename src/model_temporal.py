@@ -30,18 +30,7 @@ class MDANTemporal(MDANet):
         return h0, c0
     
     def forward_temporal(self, X, mask=None, lengths=None):
-        N, T, C, H, W = X.shape
-        X = X.reshape(T*N, C, H, W)
-        if mask is not None:
-            mask = mask.reshape(T*N, 1, H, W)
-
-        _, density = super().forward_cnn(X, mask)
-
-        h, count_fcn, count_lstm = self.forward_lstm((N, T, C, H, W), density, mask, lengths)
-       
-        count = count_fcn + count_lstm  # predicted vehicle count
-
-        return density, h, count
+        raise('Not implemented error')
 
     def forward_lstm(self, shape, density, mask=None, lengths = None):
         N, T, C, H, W = shape
@@ -64,28 +53,6 @@ class MDANTemporal(MDANet):
 
         return h, count_fcn, count_lstm
 
-
-    def forward(self, sinputs, tinputs, mask=None, lengths=None):
-       
-        
-        sdensity = []
-        scount = []
-        sh = []
-        for i in range(self.num_domains):
-            X = sinputs[i]
-            density, h, count = self.forward_temporal(X, mask, lengths)
-            sdensity.append(density)
-            scount.append(count)
-            sh.append(h)
-
-        _, th, _ = self.forward_temporal(tinputs, mask, lengths)  
-
-        sdomains, tdomains = [], []
-        for i in range(self.num_domains):
-            sdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](sh[i]))), dim=1))
-            tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](th)))))
-
-        return sdensity, scount, sdomains, tdomains
     
     def inference(self, inputs):
         densities, _, counts = self.forward_temporal(inputs)

@@ -5,7 +5,7 @@ import torch
 import utils
 import numpy as np
 from model import MDANet
-from model_temporal import MDANTemporal
+from model_temporal_common import MDANTemporalCommon
 import torch.optim as optim
 import torch.nn.functional as F
 import pickle
@@ -63,7 +63,7 @@ for domain_id in data:
         #print('\t', time_id)
         #if new_num_insts > 30:
         #    break
-        new_data_insts, new_data_densities, new_data_counts = [], [], []
+        new_data_insts, new_data_densities, new_data_counts = {}, {}, {}
         frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
         frame_ids.sort()
         for frame_id in frame_ids:
@@ -72,39 +72,41 @@ for domain_id in data:
             if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
                 frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
                 if settings.LOAD_MULTIPLE_FILES:
-                    new_data_insts.append([domain_id, time_id, frame_id, 'None'])
+                    new_data_insts.setdefault('None', []).append([domain_id, time_id, frame_id, 'None'])
                     if settings.USE_DATA_AUGMENTATION:
                         for aug_key in frame_data.augmentation:
-                            new_data_insts.append([domain_id, time_id, aug_key])
+                            new_data_insts.setdefault(aug_key, []).append([domain_id, time_id, aug_key])
                 else:
-                    new_data_insts.append(frame_data.frame / 255)
-                    new_data_densities.append(frame_data.density)
+                    new_data_insts.setdefault('None', []).append(frame_data.frame / 255)
+                    new_data_densities.setdefault('None', []).append(frame_data.density)
                     if settings.USE_DATA_AUGMENTATION:
                         for aug_key in frame_data.augmentation:
-                            new_data_insts.append(frame_data.augmentation[aug_key]/255)
-                            new_data_insts.append(frame_data.density_augmentation[aug_key])
+                            new_data_insts.setdefault(aug_key, []).append(frame_data.augmentation[aug_key]/255)
+                            new_data_insts.setdefault(aug_key, []).append(frame_data.density_augmentation[aug_key])
 
                 no_vehicles = len(frame_data.vehicles)
-                new_data_counts.append(no_vehicles)
+                new_data_counts.setdefault('None', []).append(no_vehicles)
                 if settings.USE_DATA_AUGMENTATION:
                     for aug_key in frame_data.augmentation:
-                        new_data_counts.append(no_vehicles)
+                        new_data_counts.setdefault(aug_key, []).append(no_vehicles)
                 
                 new_num_insts += 1
             else:
                 print('None')
         
         if settings.TEMPORAL:
-            domain_insts.append(new_data_insts)
-            domain_counts.append(new_data_counts)
-            if not settings.LOAD_MULTIPLE_FILES:      
-                domain_densities.append(new_data_densities)
+            for key in new_data_insts:
+                domain_insts.append(new_data_insts[key])
+                domain_counts.append(new_data_counts[key])
+                if not settings.LOAD_MULTIPLE_FILES:      
+                    domain_densities.append(new_data_densities[key])
                 
         else:
-            domain_insts += new_data_insts
-            domain_counts += new_data_counts
-            if not settings.LOAD_MULTIPLE_FILES: 
-                domain_densities += new_data_densities
+            for key in new_data_insts:
+                domain_insts += new_data_insts[key]
+                domain_counts += new_data_counts[key]
+                if not settings.LOAD_MULTIPLE_FILES: 
+                    domain_densities += new_data_densities[key]
 
     data_insts.append(domain_insts)
     data_counts.append(domain_counts)
@@ -150,7 +152,7 @@ for i in range(settings.NUM_DATASETS):
     
     # Train DannNet.
     if settings.TEMPORAL:
-        mdan = MDANTemporal(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
+        mdan = MDANTemporalCommon(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
     else:
         mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)

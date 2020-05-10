@@ -4,7 +4,7 @@ from torch.nn.utils import rnn
 from model_temporal import MDANTemporal
 import torch.nn.functional as F
 
-class MDANTemporalDouble(MDANet):
+class MDANTemporalDouble(MDANTemporal):
 
     def __init__(self, num_domains, image_dim):
         super(MDANTemporalDouble, self).__init__(num_domains, image_dim)

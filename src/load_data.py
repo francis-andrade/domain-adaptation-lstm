@@ -158,7 +158,7 @@ class CameraTimeData:
            
 
 
-def load_data(max_videos_per_dataset = None, zoom_shape = settings.IMAGE_NEW_SHAPE, compute_bounding_box=True):
+def load_data(max_videos_per_domain = None, zoom_shape = settings.IMAGE_NEW_SHAPE, compute_bounding_box=True):
     webcamTDir = os.path.join(settings.DATASET_DIRECTORY, 'WebCamT')
     data = {}
     subdirs = [d for d in os.listdir(webcamTDir)]
@@ -201,8 +201,8 @@ def load_data(max_videos_per_dataset = None, zoom_shape = settings.IMAGE_NEW_SHA
                                 camera.camera_times[time_identifier].find_region_of_interest(file)
             
             for i, video in enumerate(video_queue):
-                if max_videos_per_dataset is not None:
-                    if i >= max_videos_per_dataset:
+                if max_videos_per_domain is not None:
+                    if i >= max_videos_per_domain:
                         break
                 [time_identifier, subsubdir_path] = video
                 camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)
@@ -283,6 +283,8 @@ def load_data_structure(prefix):
     data_path = os.path.join(data_directory, prefix+'_'+'.npy')
     data = joblib.load(data_path)
     return data
+
+
 
 def load_structure(is_frame, domain_id, time_id, frame_id, prefix, data_augment = None):
     multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Multiple_Files')

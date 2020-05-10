@@ -3,7 +3,7 @@ import cv2
 import sys
 import numpy as np
 import settings
-from load_data import load_structure
+import load_data
 
 def isInteger(str):
     try:
@@ -132,16 +132,16 @@ def multi_data_loader(inputs, densities, counts, batch_size):
                                         batch_sequence_inputs.append(np.zeros((3,)+settings.IMAGE_NEW_SHAPE))
                                         batch_sequence_densities.append(np.zeros((1,)+settings.IMAGE_NEW_SHAPE))
                                 else:
-                                    new_frame = load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])
-                                    new_density = load_structure(False, frame[0], frame[1], frame[2], 'first', frame[3])
+                                    new_frame = load_data.load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])
+                                    new_density = load_data.load_structure(False, frame[0], frame[1], frame[2], 'first', frame[3])
                                     batch_sequence_inputs.append(new_frame)
                                     batch_sequence_densities.append(new_density)
                             batch_inputs[i] = np.concatenate((batch_inputs[i], np.array([batch_sequence_inputs])))
                             batch_densities[i] = np.concatenate((batch_densities[i], np.array([batch_sequence_densities])))
                         else:
                             frame = inputs[i][indexes[i][k]]
-                            new_frame = np.array([load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])])
-                            new_density = np.array([load_structure(False, frame[0], frame[1], frame[2], 'first', frame[3])])
+                            new_frame = np.array([load_data.load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])])
+                            new_density = np.array([load_data.load_structure(False, frame[0], frame[1], frame[2], 'first', frame[3])])
                             batch_inputs[i] = np.concatenate((batch_inputs[i], new_frame))
                             batch_densities[i] = np.concatenate((batch_densities[i], new_density))
                     
@@ -246,7 +246,7 @@ def rotate(shape, coordinate_x, coordinate_y, angle):
     """
     H,W  = shape
     if angle == 180:
-        return W - 1 - coordinate_x, H - 1 - coordinate_x
+        return W - 1 - coordinate_x, H - 1 - coordinate_y
     else:
         raise ValueError('The angle of a rotation can only be one of [180]')
 
@@ -270,7 +270,7 @@ def symmetric(shape, coordinate_x, coordinate_y, angle_axis):
     if angle_axis == 0:
         return coordinate_x, H - 1 - coordinate_y
     elif angle_axis == 90:
-        return H - 1 - coordinate_x, coordinate_y
+        return W - 1 - coordinate_x, coordinate_y
     else:
         raise ValueError('The angle of a symmetry can only be one of [0, 90]')
 

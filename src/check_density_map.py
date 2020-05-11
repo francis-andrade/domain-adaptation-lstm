@@ -19,11 +19,11 @@ if __name__ == '__main__':
                         dict_density.update(frame_data.density_augmentation)
                     for aug_key in dict_frame:
                         X = dict_frame[aug_key]
-                        X = X.reshape(X.shape[1], X.shape[2], 3)
+                        X = np.moveaxis(X, 0, 2)
                         cid = str(domain)+'/'+ str(ct)+'/'+str(frame_data.id)
                         count = len(frame_data.vehicles)
                         density = dict_density[aug_key]
-                        density = density.reshape(density.shape[1], density.shape[2], 1)
+                        density = np.moveaxis(density, 0, 2)
                         print('Image {}: cid={}, aug = {}, count={}, density_sum={:.3f}'.format(i, cid, aug_key, count, np.sum(density)))
                         gs = gridspec.GridSpec(2, 2)
                         fig = plt.figure()

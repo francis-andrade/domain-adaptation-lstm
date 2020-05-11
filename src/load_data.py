@@ -142,7 +142,7 @@ class CameraTimeData:
             self.frames[i+1].original_shape = frame_images[i].shape
             if zoom_shape is not None:
                 self.frames[i+1].frame = zoom(self.frames[i+1].frame, (zoom_shape[0]/self.frames[i+1].frame.shape[0], zoom_shape[1]/self.frames[i+1].frame.shape[1], 1))
-                self.frames[i+1].frame = self.frames[i+1].frame.reshape(3, zoom_shape[0], zoom_shape[1])
+                self.frames[i+1].frame = np.moveaxis(self.frames[i+1].frame, 2, 0)
                 if settings.USE_DATA_AUGMENTATION:
                     frame_r180 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.rotate, 180)
                     frame_s0 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 0)
@@ -361,7 +361,7 @@ if __name__ == '__main__':
     save_data_multiple_files(data, 'first', 'first', 'first')
     '''
     
-    data = load_data(compute_bounding_box=False)
+    data = load_data(compute_bounding_box=False, max_videos_per_domain=5)
     save_data(data, 'first')
     compute_densities(data)
     save_densities(data, 'first')

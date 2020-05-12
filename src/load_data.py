@@ -310,13 +310,14 @@ def save_densities(data, prefix):
         for time_id in data[domain_id].camera_times:
             dens_dict[time_id] = {}
             for frame_id in data[domain_id].camera_times[time_id].frames:
-                dens_dict[time_id][frame_id] = {}
                 frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
-                dens_dict[time_id][frame_id]['None'] = frame_data.density 
-                if settings.USE_DATA_AUGMENTATION:
-                    densities_aug = data[domain_id].camera_times[time_id].frames[frame_id].density_augmentation
-                    for aug_key in densities_aug:
-                        dens_dict[time_id][frame_id][aug_key] = frame_data.density_augmentation[aug_key]
+                if frame_data.frame is not None:
+                    dens_dict[time_id][frame_id] = {}
+                    dens_dict[time_id][frame_id]['None'] = frame_data.density 
+                    if settings.USE_DATA_AUGMENTATION:
+                        densities_aug = data[domain_id].camera_times[time_id].frames[frame_id].density_augmentation
+                        for aug_key in densities_aug:
+                            dens_dict[time_id][frame_id][aug_key] = frame_data.density_augmentation[aug_key]
 
         joblib.dump(dens_dict, os.path.join(densities_directory, prefix+'_'+str(domain_id)+'.npy'))
 
@@ -356,13 +357,13 @@ def compute_densities(data):
     
 
 if __name__ == '__main__':
-    '''
+    
     data = load_data_from_file('first', 'first')
     save_data_multiple_files(data, 'first', 'first', 'first')
-    '''
     
+    '''
     data = load_data(compute_bounding_box=False, max_videos_per_domain=5)
     save_data(data, 'first')
     compute_densities(data)
     save_densities(data, 'first')
-    
+    '''

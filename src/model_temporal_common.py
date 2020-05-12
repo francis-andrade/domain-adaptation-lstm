@@ -8,8 +8,8 @@ class MDANTemporalCommon(MDANTemporal):
 
     def __init__(self, num_domains, image_dim):
         super(MDANTemporalCommon, self).__init__(num_domains, image_dim)
-    
-    
+        #self.domains = nn.ModuleList([nn.Sequential(nn.Linear(1000, 10), nn.Linear(10, 2)) for _ in range(self.num_domains)])
+      
     
     def forward_temporal(self, X, mask=None, lengths=None):
         N, T, C, H, W = X.shape

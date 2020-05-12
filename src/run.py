@@ -6,6 +6,7 @@ import utils
 import numpy as np
 from model import MDANet
 from model_temporal_common import MDANTemporalCommon
+from model_temporal_double import MDANTemporalDouble
 import torch.optim as optim
 import torch.nn.functional as F
 import pickle
@@ -24,8 +25,8 @@ parser.add_argument("-m", "--model", help="Choose a model to train: [mdan]",
 
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
-parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=100)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=10)
+parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
+parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 # Compile and configure all the model parameters.
 args = parser.parse_args()
@@ -61,28 +62,28 @@ for domain_id in data:
     new_num_insts = 0
     for time_id in data[domain_id].camera_times:
         #print('\t', time_id)
-        #if new_num_insts > 30:
-        #    break
+        if new_num_insts > 20:
+            break
         new_data_insts, new_data_densities, new_data_counts = {}, {}, {}
         frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
         frame_ids.sort()
         for frame_id in frame_ids:
-            #if new_num_insts > 30:
-            #    break
+            if new_num_insts > 20:
+                break
             if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
                 frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
                 if settings.LOAD_MULTIPLE_FILES:
                     new_data_insts.setdefault('None', []).append([domain_id, time_id, frame_id, 'None'])
                     if settings.USE_DATA_AUGMENTATION:
                         for aug_key in frame_data.augmentation:
-                            new_data_insts.setdefault(aug_key, []).append([domain_id, time_id, aug_key])
+                            new_data_insts.setdefault(aug_key, []).append([domain_id, time_id, frame_id, aug_key])
                 else:
                     new_data_insts.setdefault('None', []).append(frame_data.frame / 255)
                     new_data_densities.setdefault('None', []).append(frame_data.density)
                     if settings.USE_DATA_AUGMENTATION:
                         for aug_key in frame_data.augmentation:
                             new_data_insts.setdefault(aug_key, []).append(frame_data.augmentation[aug_key]/255)
-                            new_data_insts.setdefault(aug_key, []).append(frame_data.density_augmentation[aug_key])
+                            new_data_densities.setdefault(aug_key, []).append(frame_data.density_augmentation[aug_key])
 
                 no_vehicles = len(frame_data.vehicles)
                 new_data_counts.setdefault('None', []).append(no_vehicles)
@@ -152,7 +153,7 @@ for i in range(settings.NUM_DATASETS):
     
     # Train DannNet.
     if settings.TEMPORAL:
-        mdan = MDANTemporalCommon(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
+        mdan = MDANTemporalDouble(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
     else:
         mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
@@ -181,7 +182,7 @@ for i in range(settings.NUM_DATASETS):
                             N, T, C, H, W = densities.shape 
                             densities = np.reshape(densities, (N*T, C, H, W))
                         source_densities.append(torch.from_numpy(densities).float().to(device))
-
+                
                 tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float)).float().to(device)       
                 optimizer.zero_grad()
 
@@ -190,7 +191,7 @@ for i in range(settings.NUM_DATASETS):
                 for k in range(num_domains):
                     slabels.append(torch.ones(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
                     tlabels.append(torch.zeros(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
-                
+                print("Starting MDAN")
                 model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs)
                 # Compute prediction accuracy on multiple training sources.
                 losses = torch.stack([(torch.sum(model_densities[j] - source_densities[j])**2/(2*len(model_densities[j]))) for j in range(num_domains)])

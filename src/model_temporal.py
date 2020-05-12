@@ -3,15 +3,16 @@ from torch import nn
 from torch.nn.utils import rnn
 from model import MDANet
 import torch.nn.functional as F
+import settings
 
 class MDANTemporal(MDANet):
 
     def __init__(self, num_domains, image_dim):
         super(MDANTemporal, self).__init__(num_domains)
-        self.domains = nn.ModuleList([nn.Sequential(nn.Linear(1000, 10), nn.Linear(10, 2)) for _ in range(self.num_domains)])
         H, W = image_dim
         self.lstm_block = nn.LSTM(H*W, 100, num_layers=3, batch_first=True)
         self.final_layer = nn.Linear(100, 1)
+        self.domains = nn.ModuleList([nn.Sequential(nn.Linear(100*settings.SEQUENCE_SIZE, 10), nn.Linear(10, 2)) for _ in range(self.num_domains)])
     
     def init_hidden(self, batch_size):
         """
@@ -35,15 +36,15 @@ class MDANTemporal(MDANet):
     def forward_lstm(self, shape, density, mask=None, lengths = None):
         N, T, C, H, W = shape
 
-        h = density.clone().reshape(N, T, -1)
-        count_fcn = h.sum(dim=2)
+        density_clone = density.clone().reshape(N, T, -1)
+        count_fcn = density_clone.sum(dim=2)
 
         if lengths is not None:
             # pack padded sequence so that padded items in the sequence are not shown to the LSTM
-            h = rnn.pack_padded_sequence(h, lengths, batch_first=True, enforce_sorted=True)
+            density_clone = rnn.pack_padded_sequence(density_clone, lengths, batch_first=True, enforce_sorted=True)
 
         h0 = self.init_hidden(N)
-        h, _ = self.lstm_block(h, h0)
+        h, _ = self.lstm_block(density_clone, h0)
 
         if lengths is not None:
             # undo the packing operation

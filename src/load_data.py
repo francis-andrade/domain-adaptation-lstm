@@ -362,7 +362,7 @@ if __name__ == '__main__':
     save_data_multiple_files(data, 'first', 'first', 'first')
     
     '''
-    data = load_data(compute_bounding_box=False, max_videos_per_domain=5)
+    data = load_data(compute_bounding_box=False)
     save_data(data, 'first')
     compute_densities(data)
     save_densities(data, 'first')

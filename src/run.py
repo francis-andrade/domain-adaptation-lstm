@@ -154,6 +154,7 @@ for i in range(settings.NUM_DATASETS):
     # Train DannNet.
     if settings.TEMPORAL:
         mdan = MDANTemporalDouble(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
+        #mdan = MDANTemporalCommon(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
     else:
         mdan = MDANet(num_domains).to(device)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)

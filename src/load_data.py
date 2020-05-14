@@ -158,15 +158,16 @@ class CameraTimeData:
            
 
 
-def load_data(max_videos_per_domain = None, zoom_shape = settings.IMAGE_NEW_SHAPE, compute_bounding_box=True):
+def load_data(max_videos_per_domain = None, zoom_shape = settings.IMAGE_NEW_SHAPE, compute_bounding_box=True, save_in_stages=False):
     webcamTDir = os.path.join(settings.DATASET_DIRECTORY, 'WebCamT')
     data = {}
     subdirs = [d for d in os.listdir(webcamTDir)]
     for subdir in subdirs:
         subdir_path = os.path.join(webcamTDir, subdir)
         if (utils.isInteger(subdir) and os.path.isdir(subdir_path) and int(subdir) in settings.DATASETS):
-            camera = CameraData(int(subdir))
-            data[int(subdir)] = camera
+            domain_id = int(subdir)
+            camera = CameraData(domain_id)
+            data[domain_id] = camera
             subsubdirs = [d for d in os.listdir(subdir_path)]
             video_queue = []
             for subsubdir in subsubdirs:
@@ -208,8 +209,16 @@ def load_data(max_videos_per_domain = None, zoom_shape = settings.IMAGE_NEW_SHAP
                 camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path)
                 if compute_bounding_box:
                     camera.camera_times[time_identifier].computeBoundingBox(zoom_shape)
+            
+            if save_in_stages:
+                save_data_multiple_files_domain( data[domain_id], domain_id, 'first', 'first')
                
-                
+    if save_in_stages:
+        multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Multiple_Files')
+        data_directory = os.path.join(multiple_files_directory, 'Data')
+        data_path = os.path.join(data_directory, 'first'+'_'+'.npy')
+        joblib.dump(data, data_path)
+
     return data
 
 def save_data(data, prefix):
@@ -222,60 +231,64 @@ def save_data(data, prefix):
         joblib.dump(data[domain_id], os.path.join(data_directory,prefix+'_'+ str(domain_id)+'.npy'))
 
 def save_data_multiple_files(data, prefix_data, prefix_frames, prefix_densities):
+
+    for domain_id in data:      
+        save_data_multiple_files_domain(data[domain_id], domain_id, prefix_frames, prefix_densities)
+    
+    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Multiple_Files')
+    data_directory = os.path.join(multiple_files_directory, 'Data')
+    data_path = os.path.join(data_directory, prefix_data+'_'+'.npy')
+    joblib.dump(data, data_path)
+
+def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefix_densities):
     multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Multiple_Files')
     data_directory = os.path.join(multiple_files_directory, 'Data')
     frames_directory = os.path.join(multiple_files_directory, 'Frames')
     densities_directory = os.path.join(multiple_files_directory, 'Densities')
+    str_id = str(domain_id)
+    domain_directory_frame = os.path.join(frames_directory, str_id)
+    domain_directory_density = os.path.join(densities_directory, str_id)
 
-    for domain_id in data:
-        str_id = str(domain_id)
-        domain_directory_frame = os.path.join(frames_directory, str_id)
-        domain_directory_density = os.path.join(densities_directory, str_id)
+    if not os.path.exists(domain_directory_frame):
+        os.makedirs(domain_directory_frame)
+    if not os.path.exists(domain_directory_density):
+        os.makedirs(domain_directory_density)
+    
+    for time_id in data[domain_id].camera_times:
+        str_id = str(time_id)
+        time_directory_frame = os.path.join(domain_directory_frame, str_id)
+        time_directory_density = os.path.join(domain_directory_density, str_id)
 
-        if not os.path.exists(domain_directory_frame):
-            os.makedirs(domain_directory_frame)
-        if not os.path.exists(domain_directory_density):
-            os.makedirs(domain_directory_density)
-        
-        for time_id in data[domain_id].camera_times:
-            str_id = str(time_id)
-            time_directory_frame = os.path.join(domain_directory_frame, str_id)
-            time_directory_density = os.path.join(domain_directory_density, str_id)
-
-            if not os.path.exists(time_directory_frame):
-                os.makedirs(time_directory_frame)
-            if not os.path.exists(time_directory_density):
-                os.makedirs(time_directory_density)
+        if not os.path.exists(time_directory_frame):
+            os.makedirs(time_directory_frame)
+        if not os.path.exists(time_directory_density):
+            os.makedirs(time_directory_density)
             
-            for frame_id in data[domain_id].camera_times[time_id].frames:
-                frame = data[domain_id].camera_times[time_id].frames[frame_id].frame 
-                density = data[domain_id].camera_times[time_id].frames[frame_id].density
-                if frame is not None and density is not None:
-                    str_id = str(frame_id)
-                    frame_path = os.path.join(time_directory_frame, prefix_frames+'_'+str(str_id)+'.npy')
-                    joblib.dump(frame, frame_path)
-                    density_path = os.path.join(time_directory_density, prefix_densities+'_'+str(str_id)+'.npy')
-                    joblib.dump(density, density_path)
+        for frame_id in data[domain_id].camera_times[time_id].frames:
+            frame = data[domain_id].camera_times[time_id].frames[frame_id].frame 
+            density = data[domain_id].camera_times[time_id].frames[frame_id].density
+            if frame is not None and density is not None:
+                str_id = str(frame_id)
+                frame_path = os.path.join(time_directory_frame, prefix_frames+'_'+str(str_id)+'.npy')
+                joblib.dump(frame, frame_path)
+                density_path = os.path.join(time_directory_density, prefix_densities+'_'+str(str_id)+'.npy')
+                joblib.dump(density, density_path)
 
-                    data[domain_id].camera_times[time_id].frames[frame_id].frame = 0
-                    data[domain_id].camera_times[time_id].frames[frame_id].density = 0
+                data[domain_id].camera_times[time_id].frames[frame_id].frame = 0
+                data[domain_id].camera_times[time_id].frames[frame_id].density = 0
 
-                    if settings.USE_DATA_AUGMENTATION:
-                        frames_aug = data[domain_id].camera_times[time_id].frames[frame_id].augmentation
-                        densities_aug = data[domain_id].camera_times[time_id].frames[frame_id].density_augmentation
-                        for frame_aug_key in frames_aug:
-                            frame_aug = frames_aug[frame_aug_key]
-                            density_aug = densities_aug[frame_aug_key]
-                            frame_path = os.path.join(time_directory_frame, prefix_frames+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
-                            joblib.dump(frame, frame_path)
-                            density_path = os.path.join(time_directory_density, prefix_densities+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
-                            joblib.dump(density, density_path)
-                            frames_aug[frame_aug_key] = 0
-                            densities_aug[frame_aug_key] = 0
-
-
-        data_path = os.path.join(data_directory, prefix_data+'_'+'.npy')
-        joblib.dump(data, data_path)
+                if settings.USE_DATA_AUGMENTATION:
+                    frames_aug = data[domain_id].camera_times[time_id].frames[frame_id].augmentation
+                    densities_aug = data[domain_id].camera_times[time_id].frames[frame_id].density_augmentation
+                    for frame_aug_key in frames_aug:
+                        frame_aug = frames_aug[frame_aug_key]
+                        density_aug = densities_aug[frame_aug_key]
+                        frame_path = os.path.join(time_directory_frame, prefix_frames+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
+                        joblib.dump(frame, frame_path)
+                        density_path = os.path.join(time_directory_density, prefix_densities+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
+                        joblib.dump(density, density_path)
+                        frames_aug[frame_aug_key] = 0
+                        densities_aug[frame_aug_key] = 0
 
 def load_data_structure(prefix):
     multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Multiple_Files')

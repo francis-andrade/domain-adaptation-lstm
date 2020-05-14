@@ -25,8 +25,9 @@ parser.add_argument("-m", "--model", help="Choose a model to train: [mdan]",
 
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
+parser.add_argument('-l', '--lambda', default=1e-3, type=float, metavar='', help='trade-off between density estimation and vehicle count losses (see eq. 7 in the paper)')
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
+parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=1)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 # Compile and configure all the model parameters.
 args = parser.parse_args()
@@ -142,12 +143,14 @@ num_domains = settings.NUM_DATASETS - 1
 lr = 0.0001
 mu = args.mu
 gamma = 10.0
+lambda_ = vars(args)["lambda"]
 mode = args.mode
 logger.info("Training with domain adaptation using PyTorch madnNet: ")
 error_dicts = {}
 results = {}
-results['count'] = {}
-results['density'] = {}
+results['count (mse)'] = {}
+results['density (mse)'] = {}
+results['count (mae)'] = {}
 
 for i in range(settings.NUM_DATASETS):
     
@@ -195,7 +198,9 @@ for i in range(settings.NUM_DATASETS):
                 print("Starting MDAN")
                 model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs)
                 # Compute prediction accuracy on multiple training sources.
-                losses = torch.stack([(torch.sum(model_densities[j] - source_densities[j])**2/(2*len(model_densities[j]))) for j in range(num_domains)])
+                density_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
+                count_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
+                losses = density_losses + lambda_*count_losses
                 domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels[j]) +
                                            F.nll_loss(tdomains[j], tlabels[j]) for j in range(num_domains)])
                 # Different final loss function depending on different training modes.
@@ -230,6 +235,10 @@ for i in range(settings.NUM_DATASETS):
         mdan.eval()
         if settings.LOAD_MULTIPLE_FILES:
             train_loader = utils.multi_data_loader([data_insts[i]], None, [data_counts[i]], batch_size)
+            num_insts = 0
+            mse_density_sum = 0
+            mse_count_sum = 0
+            mae_count_sum = 0
             for batch_insts, batch_densities, batch_counts in train_loader:
                 target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
                 densities = np.array(batch_densities[0], dtype=np.float)
@@ -239,11 +248,13 @@ for i in range(settings.NUM_DATASETS):
                 target_densities = torch.from_numpy(np.array(densities[0], dtype=np.float)).float().to(device)
                 target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
                 preds_densities, preds_counts = mdan.inference(target_insts)
-                mse_density_sum = torch.sum(preds_densities - target_densities)**2
-                mse_count_sum = torch.sum(preds_counts - target_counts)**2
-            mse_density = mse_density_sum / len(data_insts[i])
-            mse_count = mse_count_sum / len(data_insts[i])
-            #TODO: CHECK THIS FORMULA FOR TEMPORAL
+                mse_density_sum += torch.sum((preds_densities - target_densities)**2)
+                mse_count_sum += torch.sum((preds_counts - target_counts)**2)
+                mae_count_sum += torch.sum(abs(preds_counts-target_counts))
+                num_insts += len(target_insts)
+            mse_density = mse_density_sum / num_insts
+            mse_count = mse_count_sum / num_insts
+            mae_count = mae_count_sum / num_insts
         else:
             target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
             target_densities  = torch.tensor(target_densities).float()
@@ -252,11 +263,16 @@ for i in range(settings.NUM_DATASETS):
             preds_densities, preds_counts = mdan.inference(target_insts)
             mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
             mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
-        logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {} time used = {} seconds.".
-                format(i, mse_count, mse_density, time_end - time_start))
-        results['density'][i] = mse_density
-        results['count'][i] = mse_count
+            mae_count = torch.sum(abs(preds_counts-target_counts))/preds_counts.shape[0]
+        logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE, time used = {} seconds.".
+                format(i, mse_count, mse_density, mae_count, time_end - time_start))
+        results['density (mse)'][i] = mse_density
+        results['count (mse)'][i] = mse_count
+        results['count (mae)'][i] = mae_count
     
     del train_loader, mdan, optimizer, source_insts, source_counts, source_densities, tinputs, target_insts, target_counts, target_densities, preds_densities, preds_counts, model_densities, model_counts, sdomains, tdomains, loss, domain_losses, slabels, tlabels
     n_obj = gc.collect()
     print('No. of objects removed: ', n_obj)
+
+logger.info("Prediction accuracy with multiple source domain adaptation using madnNet: ")
+logger.info(results)

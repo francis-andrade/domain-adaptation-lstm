@@ -214,7 +214,7 @@ for i in range(settings.NUM_DATASETS):
                 loss.backward()
                 optimizer.step()
             
-            logger.info("Iteration {}, loss = {}, mean count loss = {}, mean density loss = {}".format(t, running_loss))
+            logger.info("Iteration {}, loss = {}, mean count loss = {}, mean density loss = {}".format(t, running_loss, count_losses.mean(), density_losses.mean()))
                 
     
     time_end = time.time()

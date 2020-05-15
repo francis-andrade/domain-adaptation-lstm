@@ -199,7 +199,7 @@ for i in range(settings.NUM_DATASETS):
                 model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs)
                 # Compute prediction accuracy on multiple training sources.
                 density_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
-                count_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
+                count_losses = torch.stack([(torch.sum((model_counts[j] - source_counts[j])**2)/(len(model_counts[j]))) for j in range(num_domains)])
                 losses = density_losses + lambda_*count_losses
                 domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels[j]) +
                                            F.nll_loss(tdomains[j], tlabels[j]) for j in range(num_domains)])
@@ -214,21 +214,12 @@ for i in range(settings.NUM_DATASETS):
                 loss.backward()
                 optimizer.step()
             
-            logger.info("Iteration {}, loss = {}".format(t, running_loss))
+            logger.info("Iteration {}, loss = {}, mean count loss = {}, mean density loss = {}".format(t, running_loss))
                 
     
     time_end = time.time()
     # Test on other domains.
-    # Build target instances.
-
-    if not settings.LOAD_MULTIPLE_FILES:
-        target_counts = np.array(data_counts[i], dtype=np.float)
-        target_insts = np.array(data_insts[i], dtype=np.float)
-        densities = np.array(data_densities[i], dtype=np.float)
-        if settings.TEMPORAL:
-            N, T, C, H, W = densities.shape 
-            densities = np.reshape(densities, (N*T, C, H, W))
-        target_densities = densities
+    # Build target instances.       
 
     
     with torch.no_grad():
@@ -256,6 +247,13 @@ for i in range(settings.NUM_DATASETS):
             mse_count = mse_count_sum / num_insts
             mae_count = mae_count_sum / num_insts
         else:
+            target_counts = np.array(data_counts[i], dtype=np.float)
+            target_insts = np.array(data_insts[i], dtype=np.float)
+            densities = np.array(data_densities[i], dtype=np.float)
+            if settings.TEMPORAL:
+                N, T, C, H, W = densities.shape 
+            densities = np.reshape(densities, (N*T, C, H, W))
+            target_densities = densities
             target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
             target_densities  = torch.tensor(target_densities).float()
             target_counts  = torch.tensor(target_counts).float()
@@ -264,7 +262,7 @@ for i in range(settings.NUM_DATASETS):
             mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
             mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
             mae_count = torch.sum(abs(preds_counts-target_counts))/preds_counts.shape[0]
-        logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE, time used = {} seconds.".
+        logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}, time used = {} seconds.".
                 format(i, mse_count, mse_density, mae_count, time_end - time_start))
         results['density (mse)'][i] = mse_density
         results['count (mse)'][i] = mse_count

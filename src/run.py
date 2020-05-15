@@ -172,7 +172,7 @@ for i in range(settings.NUM_DATASETS):
             else:
                 train_loader = utils.multi_data_loader(data_insts, data_densities, data_counts, batch_size)
             for batch_insts, batch_densities, batch_counts in train_loader:
-                logger.info("Starting batch")
+                #logger.info("Starting batch")
                 # Build source instances.
                 source_insts = []
                 source_counts = []
@@ -195,7 +195,7 @@ for i in range(settings.NUM_DATASETS):
                 for k in range(num_domains):
                     slabels.append(torch.ones(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
                     tlabels.append(torch.zeros(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
-                print("Starting MDAN")
+                #print("Starting MDAN")
                 model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs)
                 # Compute prediction accuracy on multiple training sources.
                 density_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])

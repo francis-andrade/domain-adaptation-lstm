@@ -49,16 +49,18 @@ class MDANTemporalDouble(MDANTemporal):
 
         sdomains, tdomains = [], []
         for i in range(self.num_domains):
+            h_lstm = self.grls[i].apply(sh[i])
             h0 = self.init_hidden(N)
             h_lstm = self.domains_conv[i](sh[i])
             h_lstm = h_lstm.reshape(N, T, -1)
             h_lstm, _ = self.domains_lstm[i](h_lstm, h0)
-            sdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](h_lstm))), dim=1))
+            sdomains.append(F.log_softmax(self.domains[i](self.flatten[i](h_lstm)), dim=1))
+            h_lstm = self.grls[i].apply(sh[i])
             h0 = self.init_hidden(N)
             h_lstm = self.domains_conv[i](th)
             h_lstm = h_lstm.reshape(N, T, -1)
             h_lstm, _ = self.domains_lstm[i](h_lstm, h0)
-            tdomains.append(F.log_softmax(self.domains[i](self.grls[i].apply(self.flatten[i](h_lstm)))))
+            tdomains.append(F.log_softmax(self.domains[i](self.flatten[i](h_lstm)), dim=1))
 
         return sdensity, scount, sdomains, tdomains
         

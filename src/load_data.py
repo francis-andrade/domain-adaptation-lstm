@@ -32,6 +32,14 @@ class VehicleData:
                 self.direction = int(child.text)
             elif child.tag == "previous":
                 self.previous = int(child.text)
+        
+       
+    
+    def check_boundaries(self, frame_height, frame_width):
+        if self.xmax >= frame_width or self.xmin >= self.xmax or self.xmin < 0 or self.ymax >= frame_height or self.ymin >= self.ymax or self.ymin < 0:
+            return False
+        else:
+            return True
     
     def calculateCenter(self):
         return [(self.xmax+self.xmin)/2, (self.ymax+self.ymin)/2]
@@ -44,6 +52,7 @@ class VehicleData:
 class FrameData:
     
     def __init__(self, root_xml):
+        self.invalid = False
         self.frame = None
         self.density = None
         self.vehicles = []
@@ -61,7 +70,12 @@ class FrameData:
             elif child.tag == "flow":
                 self.flow = int(child.text)
             elif child.tag == "vehicle":
-                self.vehicles.append(VehicleData(child))
+                vehicle_data = VehicleData(child)
+                self.vehicles.append(vehicle_data)
+                if not vehicle_data.check_boundaries(self.height, self.width):
+                    self.invalid = True
+                    self.invalid_id = vehicle_data.id
+                    break
             elif child.tag == "frame":
                 self.id = int(child.text)
     
@@ -140,18 +154,22 @@ class CameraTimeData:
             print(len(frame_images))
         '''
         for i in range(min(len(self.frames), len(frame_images))):
-            self.frames[i+1].frame = frame_images[i]
-            self.frames[i+1].original_shape = frame_images[i].shape
-            if zoom_shape is not None:
-                self.frames[i+1].frame = zoom(self.frames[i+1].frame, (zoom_shape[0]/self.frames[i+1].frame.shape[0], zoom_shape[1]/self.frames[i+1].frame.shape[1], 1))
-                self.frames[i+1].frame = np.moveaxis(self.frames[i+1].frame, 2, 0)
-                if settings.USE_DATA_AUGMENTATION:
-                    frame_r180 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.rotate, 180)
-                    frame_s0 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 0)
-                    frame_s90 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 90)
-                    frame_brightness = utils.change_brightness_contrast(self.frames[i+1].frame, 50, 0)
-                    frame_contrast = utils.change_brightness_contrast(self.frames[i+1].frame, 0, 30)
-                    self.frames[i+1].augmentation = {'r180': frame_r180, 's0': frame_s0, 's90': frame_s90, 'contrast': frame_contrast, 'brightness': frame_brightness}
+            if self.frames[i+1].invalid:
+                print("Invalid: ", filepath, " ", self.frames[i+1].id, " ", self.frames[i+1].invalid_id)
+                self.frames[i+1].frame = None
+            else:
+                self.frames[i+1].frame = frame_images[i]
+                self.frames[i+1].original_shape = frame_images[i].shape
+                if zoom_shape is not None:
+                    self.frames[i+1].frame = zoom(self.frames[i+1].frame, (zoom_shape[0]/self.frames[i+1].frame.shape[0], zoom_shape[1]/self.frames[i+1].frame.shape[1], 1))
+                    self.frames[i+1].frame = np.moveaxis(self.frames[i+1].frame, 2, 0)
+                    if settings.USE_DATA_AUGMENTATION:
+                        frame_r180 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.rotate, 180)
+                        frame_s0 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 0)
+                        frame_s90 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 90)
+                        frame_brightness = utils.change_brightness_contrast(self.frames[i+1].frame, 50, 0)
+                        frame_contrast = utils.change_brightness_contrast(self.frames[i+1].frame, 0, 30)
+                        self.frames[i+1].augmentation = {'r180': frame_r180, 's0': frame_s0, 's90': frame_s90, 'contrast': frame_contrast, 'brightness': frame_brightness}
 
     
     def computeBoundingBox(self, zoom_shape = settings.IMAGE_NEW_SHAPE):
@@ -374,13 +392,13 @@ def compute_densities(data):
     
 
 if __name__ == '__main__':
-    
+    '''
     data = load_data_from_file('first', 'first')
     save_data_multiple_files(data, 'first', 'first', 'first')
-    
     '''
+    
     data = load_data(compute_bounding_box=False)
     save_data(data, 'first')
     compute_densities(data)
     save_densities(data, 'first')
-    '''
+    

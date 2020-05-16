@@ -275,6 +275,11 @@ def symmetric(shape, coordinate_x, coordinate_y, angle_axis):
         raise ValueError('The angle of a symmetry can only be one of [0, 90]')
 
 
+def change_brightness_contrast(matrix, brightness, contrast):
+    matrix = matrix * (contrast/127+1) - contrast + brightness
+    matrix = np.clip(matrix, 0, 255)
+    return matrix
+
 def transform_matrix(matrix, function, angle):
     """
     Function that applies a transformation (rotation or symmetry) to a matrix  
@@ -298,6 +303,8 @@ def transform_matrix(matrix, function, angle):
             new_x, new_y = function(matrix.shape, coordinate_x, coordinate_y, angle)
             new_matrix[new_y][new_x] = matrix[coordinate_y][coordinate_x]
     return new_matrix    
+
+
 
 def transform_matrix_channels(matrix, function, angle):
     C, H, W = matrix.shape

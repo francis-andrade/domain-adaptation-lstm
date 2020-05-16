@@ -80,7 +80,9 @@ class FrameData:
                 density_r180 = utils.transform_matrix_channels(self.density, utils.rotate, 180)
                 density_s0 = utils.transform_matrix_channels(self.density, utils.symmetric, 0)
                 density_s90 = utils.transform_matrix_channels(self.density, utils.symmetric, 90)
-                self.density_augmentation = {'r180': density_r180, 's0': density_s0, 's90': density_s90}
+                density_brightness = np.copy(self.density)
+                density_contrast = np.copy(self.density)
+                self.density_augmentation = {'r180': density_r180, 's0': density_s0, 's90': density_s90, 'brightness': density_brightness, 'contrast': density_contrast}
              
     
     def drawGaussian(self, zoom_shape = settings.IMAGE_NEW_SHAPE):
@@ -147,7 +149,9 @@ class CameraTimeData:
                     frame_r180 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.rotate, 180)
                     frame_s0 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 0)
                     frame_s90 = utils.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 90)
-                    self.frames[i+1].augmentation = {'r180': frame_r180, 's0': frame_s0, 's90': frame_s90}
+                    frame_brightness = utils.change_brightness_contrast(self.frames[i+1].frame, 50, 0)
+                    frame_contrast = utils.change_brightness_contrast(self.frames[i+1].frame, 0, 30)
+                    self.frames[i+1].augmentation = {'r180': frame_r180, 's0': frame_s0, 's90': frame_s90, 'contrast': frame_contrast, 'brightness': frame_brightness}
 
     
     def computeBoundingBox(self, zoom_shape = settings.IMAGE_NEW_SHAPE):

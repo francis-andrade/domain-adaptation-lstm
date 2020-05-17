@@ -83,7 +83,11 @@ def gauss2d(shape, center, sigmax, sigmay, out_shape=None):
     sigmax, sigmay = sigmax / W, sigmay / H
     G = np.exp(-(1/2)*(((x - x0)/sigmax)**2 + ((y - y0)/sigmay)**2))  # Gaussian kernel centered in (x0, y0)
     #return G
-    return G/np.sum(G)  # normalized so it sums to 1
+    sum = np.sum(G)
+    if sum == 0:
+        return G
+    else:
+        return G/sum  # normalized so it sums to 1
 
 def density_map(shape, centers, sigmas, out_shape=None):
     if out_shape is None:

@@ -27,7 +27,7 @@ parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for th
                     type=float, default=1e-2)
 parser.add_argument('-l', '--lambda', default=1e-3, type=float, metavar='', help='trade-off between density estimation and vehicle count losses (see eq. 7 in the paper)')
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=1)
+parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 # Compile and configure all the model parameters.
 args = parser.parse_args()
@@ -236,7 +236,7 @@ for i in range(settings.NUM_DATASETS):
                 if settings.TEMPORAL:
                     N, T, C, H, W = densities.shape 
                     densities = np.reshape(densities, (N*T, C, H, W))
-                target_densities = torch.from_numpy(np.array(densities[0], dtype=np.float)).float().to(device)
+                target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
                 target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
                 preds_densities, preds_counts = mdan.inference(target_insts)
                 mse_density_sum += torch.sum((preds_densities - target_densities)**2)

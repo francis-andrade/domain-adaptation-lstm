@@ -1,6 +1,12 @@
 ##
 ## Note 1: File 410/410-20160430-12/000157.xml and other have an error Substitute & for &amp
 ## Note 2: Some frames id are the same for different frames: for example in 410-20160704-12 290.xml and 295.xml
+## Note 3: 
+#   - Some xmax/ymax are equal to width/height, for example: file:///home/francisco/Desktop/Tese/Dataset/WebCamT/511/511-20160704-15/000244.xml (vehicle 7)
+#   - Some xmax/ymax are larger than width/height, for example: file:///home/francisco/Desktop/Tese/Dataset/WebCamT/164/164-20160223-09/000001.xml (vehicle 1)
+#   - Some xmin/ymin are 0's, for example: file:///home/francisco/Desktop/Tese/Dataset/WebCamT/511/511-20160429-15/000139.xml (vehicle 1)
+#   - Some xmin/ymin are lower than 0's, for example: file:///home/francisco/Desktop/Tese/Dataset/WebCamT/511/511-20160429-15/000125.xml (vehicle1)
+#   - Some xmin/ymin are greater than xmax/ymax, for example: file:///home/francisco/Desktop/Tese/Dataset/WebCamT/410/410-20160704-12/000007.xml (vehicle 3)
 import os
 import settings
 import xml.etree.ElementTree as ET
@@ -36,7 +42,7 @@ class VehicleData:
        
     
     def check_boundaries(self, frame_height, frame_width):
-        if self.xmax >= frame_width or self.xmin >= self.xmax or self.xmin < 0 or self.ymax >= frame_height or self.ymin >= self.ymax or self.ymin < 0:
+        if self.xmin >= self.xmax  or self.ymin >= self.ymax:
             return False
         else:
             return True
@@ -392,13 +398,13 @@ def compute_densities(data):
     
 
 if __name__ == '__main__':
-    '''
+    
     data = load_data_from_file('first', 'first')
     save_data_multiple_files(data, 'first', 'first', 'first')
-    '''
     
+    '''
     data = load_data(compute_bounding_box=False)
     save_data(data, 'first')
     compute_densities(data)
     save_densities(data, 'first')
-    
+    '''

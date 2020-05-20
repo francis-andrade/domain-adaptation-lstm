@@ -29,7 +29,7 @@ parser.add_argument('-l', '--lambda', default=1e-3, type=float, metavar='', help
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
 parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
-parser.add_argument('--use_visdom', default=False, type=int, metavar='', help='use Visdom to visualize plots')
+parser.add_argument('--use_visdom', default=True, type=int, metavar='', help='use Visdom to visualize plots')
 parser.add_argument('--visdom_env', default='MDAN', type=str, metavar='', help='Visdom environment name')
 parser.add_argument('--visdom_port', default=8444, type=int, metavar='', help='Visdom port')
 # Compile and configure all the model parameters.
@@ -234,9 +234,9 @@ for i in range(settings.NUM_DATASETS):
 
             if args_dict['use_visdom']:
                 # plot the losses
-                loss_plt.plot('global loss', 'train', 'MSE', t, running_loss)
-                loss_plt.plot('density loss', 'train', 'MSE', t, running_density_loss)
-                loss_plt.plot('count loss', 'train', 'MSE', t, running_count_loss)
+                loss_plt.plot('global loss ('+str(settings.DATASETS[i])+')', 'train', 'MSE', t, running_loss)
+                loss_plt.plot('density loss ('+str(settings.DATASETS[i])+')', 'train', 'MSE', t, running_density_loss / no_batches)
+                loss_plt.plot('count loss ('+str(settings.DATASETS[i])+')', 'train', 'MSE', t, running_count_loss / no_batches)
 
             with torch.no_grad():
                 mdan.eval()
@@ -282,9 +282,9 @@ for i in range(settings.NUM_DATASETS):
                       format(i, mse_count, mse_density, mae_count))
                 if args_dict['use_visdom']:
                     # plot the losses
-                    loss_plt.plot('count error', 'valid', 'MSE', t, mae_count)
-                    loss_plt.plot('density loss', 'valid', 'MSE', t, mse_density)
-                    loss_plt.plot('count loss', 'valid', 'MSE', t, mse_count)
+                    loss_plt.plot('count error ('+str(settings.DATASETS[i])+')', 'valid', 'MAE', t, mae_count)
+                    loss_plt.plot('density loss ('+str(settings.DATASETS[i])+')', 'valid', 'MSE', t, mse_density)
+                    loss_plt.plot('count loss ('+str(settings.DATASETS[i])+')', 'valid', 'MSE', t, mse_count)
     
     results['density (mse)'][i] = mse_density
     results['count (mse)'][i] = mse_count

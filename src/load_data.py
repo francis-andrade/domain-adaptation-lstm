@@ -51,9 +51,9 @@ class VehicleData:
         return [(self.xmax+self.xmin)/2, (self.ymax+self.ymin)/2]
     
     def calculateSigma(self):
-        #factor = 1/1.96 # so that exactly 5% of gaussian distribution is outside the car boundaries
-        #return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
-        return [15, 15]               
+        factor = 1/1.96 # so that exactly 5% of gaussian distribution is outside the car boundaries
+        return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
+        #return [15, 15]               
 
 class FrameData:
     
@@ -399,12 +399,17 @@ def compute_densities(data):
 
 if __name__ == '__main__':
     
+    '''
     data = load_data_from_file('first', 'first')
     save_data_multiple_files(data, 'first', 'first', 'first')
-    
+    '''
     '''
     data = load_data(compute_bounding_box=False)
     save_data(data, 'first')
     compute_densities(data)
     save_densities(data, 'first')
     '''
+    data = load_data_from_file('first', 'first')
+    compute_densities(data)
+    save_densities(data, 'proportional')
+    save_data_multiple_files(data, 'first', 'first', 'proportional')

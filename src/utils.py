@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import settings
 import load_data
+#import skimage.transform as SkT
 
 def isInteger(str):
     try:
@@ -137,7 +138,7 @@ def multi_data_loader(inputs, densities, counts, batch_size):
                                         batch_sequence_densities.append(np.zeros((1,)+settings.IMAGE_NEW_SHAPE))
                                 else:
                                     new_frame = load_data.load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])
-                                    new_density = load_data.load_structure(False, frame[0], frame[1], frame[2], 'first', frame[3])
+                                    new_density = load_data.load_structure(False, frame[0], frame[1], frame[2], 'proportional', frame[3])
                                     batch_sequence_inputs.append(new_frame)
                                     batch_sequence_densities.append(new_density)
                             batch_inputs[i] = np.concatenate((batch_inputs[i], np.array([batch_sequence_inputs])))
@@ -145,7 +146,7 @@ def multi_data_loader(inputs, densities, counts, batch_size):
                         else:
                             frame = inputs[i][indexes[i][k]]
                             new_frame = np.array([load_data.load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])])
-                            new_density = np.array([load_data.load_structure(False, frame[0], frame[1], frame[2], 'first', frame[3])])
+                            new_density = np.array([load_data.load_structure(False, frame[0], frame[1], frame[2], 'proportional', frame[3])])
                             batch_inputs[i] = np.concatenate((batch_inputs[i], new_frame))
                             batch_densities[i] = np.concatenate((batch_densities[i], new_density))
                     
@@ -316,3 +317,24 @@ def transform_matrix_channels(matrix, function, angle):
     for channel in range(C):
          new_matrix[channel] = transform_matrix(matrix[channel], function, angle)
     return new_matrix
+
+'''
+def show_images(plt, var_name, X, density, count, shape=None):
+    labels = ['img {} count = {} | '.format(i, int(cnti)) for i, cnti in enumerate(count)]
+
+    if shape is not None:
+        N = X.shape[0]  # N, C, H, W
+        X, density = X.transpose(2, 3, 0, 1), density.transpose(2, 3, 0, 1)  # H, W, N, C (format expected by skimage)
+        X, density = SkT.resize(X, (shape[0], shape[1], N, 3)), SkT.resize(density, (shape[0], shape[1], N, 1))
+        X, density = X.transpose(2, 3, 0, 1), density.transpose(2, 3, 0, 1)  # N, C, H, W
+    Xh = np.tile(np.mean(X, axis=1, keepdims=True), (1, 3, 1, 1))
+    density = np.squeeze(density)
+    density[density < 0] = 0.
+    scale = np.max(density, axis=(1, 2))[:, np.newaxis, np.newaxis] + 1e-9
+    density /= scale
+    Xh[:, 1, :, :] *= 1 - density
+    Xh[:, 2, :, :] *= 1 - density
+    density = np.tile(density[:, np.newaxis, :, :], (1, 3, 1, 1))
+    plt.plot(var_name + ' highlighted', Xh, labels)
+    plt.plot(var_name + ' density maps', density, labels)
+'''

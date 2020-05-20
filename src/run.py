@@ -1,5 +1,4 @@
 import settings
-import time
 import argparse
 import torch
 import utils
@@ -13,6 +12,7 @@ import pickle
 from load_data import load_data, load_data_from_file, load_data_structure, CameraData, CameraTimeData, FrameData, VehicleData
 import joblib
 import gc
+import plotter
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="Name used to save the log file.", type = str, default="webcamT")
@@ -29,6 +29,9 @@ parser.add_argument('-l', '--lambda', default=1e-3, type=float, metavar='', help
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
 parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
+parser.add_argument('--use_visdom', default=False, type=int, metavar='', help='use Visdom to visualize plots')
+parser.add_argument('--visdom_env', default='MDAN', type=str, metavar='', help='Visdom environment name')
+parser.add_argument('--visdom_port', default=8444, type=int, metavar='', help='Visdom port')
 # Compile and configure all the model parameters.
 args = parser.parse_args()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -39,7 +42,6 @@ logger = utils.get_logger(args.name)
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 # Loading the randomly partition the amazon data set.
-time_start = time.time()
 logger.info('Started loading data')
 #data = load_data(10)
 #data = joblib.load('temporary.npy')
@@ -143,8 +145,16 @@ num_domains = settings.NUM_DATASETS - 1
 lr = 0.0001
 mu = args.mu
 gamma = 10.0
-lambda_ = vars(args)["lambda"]
 mode = args.mode
+args_dict = vars(args)
+lambda_ = args_dict["lambda"]
+
+args_dict = vars(args)
+if args_dict['use_visdom']:
+    loss_plt = plotter.VisdomLossPlotter(env_name=args_dict['visdom_env'],
+                                             port=args_dict['visdom_port'])
+    img_plt = plotter.VisdomImgsPlotter(env_name=args_dict['visdom_env'],
+                                            port=args_dict['visdom_port'])
 logger.info("Training with domain adaptation using PyTorch madnNet: ")
 error_dicts = {}
 results = {}
@@ -163,10 +173,13 @@ for i in range(settings.NUM_DATASETS):
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
     mdan.train()
     # Training phase.
-    time_start = time.time()
+
     logger.info("Start training...")
     for t in range(num_epochs):
             running_loss = 0.0
+            running_count_loss = 0.0
+            running_density_loss = 0.0
+            no_batches = 0
             if settings.LOAD_MULTIPLE_FILES:
                 train_loader = utils.multi_data_loader(data_insts, None, data_counts, batch_size)
             else:
@@ -210,67 +223,77 @@ for i in range(settings.NUM_DATASETS):
                     loss = torch.log(torch.sum(torch.exp(gamma * (losses + mu * domain_losses)))) / gamma
                 else:
                     raise ValueError("No support for the training mode on madnNet: {}.".format(mode))
+                no_batches += 1
                 running_loss += loss.item()
+                running_count_loss += count_losses.mean().item()
+                running_density_loss += density_losses.mean().item()
                 loss.backward()
                 optimizer.step()
             
-            logger.info("Iteration {}, loss = {}, mean count loss = {}, mean density loss = {}".format(t, running_loss, count_losses.mean(), density_losses.mean()))
+            logger.info("Iteration {}, loss = {}, mean count loss = {}, mean density loss = {}".format(t, running_loss, running_count_loss / no_batches, running_density_loss / no_batches))
+
+            if args_dict['use_visdom']:
+                # plot the losses
+                loss_plt.plot('global loss', 'train', 'MSE', t, running_loss)
+                loss_plt.plot('density loss', 'train', 'MSE', t, running_density_loss)
+                loss_plt.plot('count loss', 'train', 'MSE', t, running_count_loss)
+
+            with torch.no_grad():
+                mdan.eval()
+                if settings.LOAD_MULTIPLE_FILES:
+                    train_loader = utils.multi_data_loader([data_insts[i]], None, [data_counts[i]], batch_size)
+                    num_insts = 0
+                    mse_density_sum = 0
+                    mse_count_sum = 0
+                    mae_count_sum = 0
+                    for batch_insts, batch_densities, batch_counts in train_loader:
+                        target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
+                        densities = np.array(batch_densities[0], dtype=np.float)
+                        if settings.TEMPORAL:
+                            N, T, C, H, W = densities.shape 
+                            densities = np.reshape(densities, (N*T, C, H, W))
+                        target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
+                        target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
+                        preds_densities, preds_counts = mdan.inference(target_insts)
+                        mse_density_sum += torch.sum((preds_densities - target_densities)**2)
+                        mse_count_sum += torch.sum((preds_counts - target_counts)**2)
+                        mae_count_sum += torch.sum(abs(preds_counts-target_counts))
+                        num_insts += len(target_insts)
+                    mse_density = mse_density_sum / num_insts
+                    mse_count = mse_count_sum / num_insts
+                    mae_count = mae_count_sum / num_insts
+                else:
+                    target_counts = np.array(data_counts[i], dtype=np.float)
+                    target_insts = np.array(data_insts[i], dtype=np.float)
+                    densities = np.array(data_densities[i], dtype=np.float)
+                    if settings.TEMPORAL:
+                        N, T, C, H, W = densities.shape 
+                    densities = np.reshape(densities, (N*T, C, H, W))
+                    target_densities = densities
+                    target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
+                    target_densities  = torch.tensor(target_densities).float()
+                    target_counts  = torch.tensor(target_counts).float()
+                    #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
+                    preds_densities, preds_counts = mdan.inference(target_insts)
+                    mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
+                    mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
+                    mae_count = torch.sum(abs(preds_counts-target_counts))/preds_counts.shape[0]
+                logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}".
+                      format(i, mse_count, mse_density, mae_count))
+                if args_dict['use_visdom']:
+                    # plot the losses
+                    loss_plt.plot('count error', 'valid', 'MSE', t, mae_count)
+                    loss_plt.plot('density loss', 'valid', 'MSE', t, mse_density)
+                    loss_plt.plot('count loss', 'valid', 'MSE', t, mse_count)
+    
+    results['density (mse)'][i] = mse_density
+    results['count (mse)'][i] = mse_count
+    results['count (mae)'][i] = mae_count
                 
     
-    time_end = time.time()
-    # Test on other domains.
-    # Build target instances.       
-
-    
-    with torch.no_grad():
-        mdan.eval()
-        if settings.LOAD_MULTIPLE_FILES:
-            train_loader = utils.multi_data_loader([data_insts[i]], None, [data_counts[i]], batch_size)
-            num_insts = 0
-            mse_density_sum = 0
-            mse_count_sum = 0
-            mae_count_sum = 0
-            for batch_insts, batch_densities, batch_counts in train_loader:
-                target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
-                densities = np.array(batch_densities[0], dtype=np.float)
-                if settings.TEMPORAL:
-                    N, T, C, H, W = densities.shape 
-                    densities = np.reshape(densities, (N*T, C, H, W))
-                target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
-                target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
-                preds_densities, preds_counts = mdan.inference(target_insts)
-                mse_density_sum += torch.sum((preds_densities - target_densities)**2)
-                mse_count_sum += torch.sum((preds_counts - target_counts)**2)
-                mae_count_sum += torch.sum(abs(preds_counts-target_counts))
-                num_insts += len(target_insts)
-            mse_density = mse_density_sum / num_insts
-            mse_count = mse_count_sum / num_insts
-            mae_count = mae_count_sum / num_insts
-        else:
-            target_counts = np.array(data_counts[i], dtype=np.float)
-            target_insts = np.array(data_insts[i], dtype=np.float)
-            densities = np.array(data_densities[i], dtype=np.float)
-            if settings.TEMPORAL:
-                N, T, C, H, W = densities.shape 
-            densities = np.reshape(densities, (N*T, C, H, W))
-            target_densities = densities
-            target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
-            target_densities  = torch.tensor(target_densities).float()
-            target_counts  = torch.tensor(target_counts).float()
-            #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
-            preds_densities, preds_counts = mdan.inference(target_insts)
-            mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
-            mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
-            mae_count = torch.sum(abs(preds_counts-target_counts))/preds_counts.shape[0]
-        logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}, time used = {} seconds.".
-                format(i, mse_count, mse_density, mae_count, time_end - time_start))
-        results['density (mse)'][i] = mse_density
-        results['count (mse)'][i] = mse_count
-        results['count (mae)'][i] = mae_count
-    
-    del train_loader, mdan, optimizer, source_insts, source_counts, source_densities, tinputs, target_insts, target_counts, target_densities, preds_densities, preds_counts, model_densities, model_counts, sdomains, tdomains, loss, domain_losses, slabels, tlabels
-    n_obj = gc.collect()
-    print('No. of objects removed: ', n_obj)
+    #del train_loader, mdan, optimizer, source_insts, source_counts, source_densities, tinputs, target_insts, target_counts, target_densities, preds_densities, preds_counts, model_densities, model_counts, sdomains, tdomains, loss, domain_losses, slabels, tlabels
+    #n_obj = gc.collect()
+    #print('No. of objects removed: ', n_obj)
 
 logger.info("Prediction accuracy with multiple source domain adaptation using madnNet: ")
 logger.info(results)

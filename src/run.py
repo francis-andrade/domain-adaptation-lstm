@@ -29,7 +29,7 @@ parser.add_argument('-l', '--lambda', default=1e-3, type=float, metavar='', help
 parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
 parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
-parser.add_argument('--use_visdom', default=True, type=int, metavar='', help='use Visdom to visualize plots')
+parser.add_argument('--use_visdom', default=False, type=int, metavar='', help='use Visdom to visualize plots')
 parser.add_argument('--visdom_env', default='MDAN', type=str, metavar='', help='Visdom environment name')
 parser.add_argument('--visdom_port', default=8444, type=int, metavar='', help='Visdom port')
 # Compile and configure all the model parameters.
@@ -161,8 +161,15 @@ results = {}
 results['count (mse)'] = {}
 results['density (mse)'] = {}
 results['count (mae)'] = {}
+results['best count (mse)'] = {}
+results['best density (mse)'] = {}
+results['best count (mae)'] = {}
 
 for i in range(settings.NUM_DATASETS):
+    domain_id = settings.DATASETS[i]
+    results['best density (mse)'][domain_id] = np.inf
+    results['best count (mse)'][domain_id] = np.inf
+    results['best count (mae)'][domain_id] = np.inf
     
     # Train DannNet.
     if settings.TEMPORAL:
@@ -279,16 +286,25 @@ for i in range(settings.NUM_DATASETS):
                     mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
                     mae_count = torch.sum(abs(preds_counts-target_counts))/preds_counts.shape[0]
                 logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}".
-                      format(i, mse_count, mse_density, mae_count))
+                      format(settings.DATASETS[i], mse_count, mse_density, mae_count))
                 if args_dict['use_visdom']:
                     # plot the losses
-                    loss_plt.plot('count error ('+str(settings.DATASETS[i])+')', 'valid', 'MAE', t, mae_count)
-                    loss_plt.plot('density loss ('+str(settings.DATASETS[i])+')', 'valid', 'MSE', t, mse_density)
-                    loss_plt.plot('count loss ('+str(settings.DATASETS[i])+')', 'valid', 'MSE', t, mse_count)
+                    loss_plt.plot('count error ('+str(domain_id)+')', 'valid', 'MAE', t, mae_count)
+                    loss_plt.plot('density loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_density)
+                    loss_plt.plot('count loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_count)
+                
+                if mse_density < results['best density (mse)'][domain_id]:
+                    results['best density (mse)'][domain_id] = mse_density
+
+                if mse_count < results['best count (mse)'][domain_id]:
+                    results['best count (mse)'][domain_id] = mse_count
+
+                if mae_count < results['best count (mae)'][domain_id]:
+                    results['best count (mae)'][domain_id] = mae_count
     
-    results['density (mse)'][i] = mse_density
-    results['count (mse)'][i] = mse_count
-    results['count (mae)'][i] = mae_count
+    results['density (mse)'][domain_id] = mse_density
+    results['count (mse)'][domain_id] = mse_count
+    results['count (mae)'][domain_id] = mae_count
                 
     
     #del train_loader, mdan, optimizer, source_insts, source_counts, source_densities, tinputs, target_insts, target_counts, target_densities, preds_densities, preds_counts, model_densities, model_counts, sdomains, tdomains, loss, domain_losses, slabels, tlabels

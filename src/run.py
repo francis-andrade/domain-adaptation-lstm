@@ -262,9 +262,9 @@ for i in range(settings.NUM_DATASETS):
                         target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
                         target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
                         preds_densities, preds_counts = mdan.inference(target_insts)
-                        mse_density_sum += torch.sum((preds_densities - target_densities)**2)
-                        mse_count_sum += torch.sum((preds_counts - target_counts)**2)
-                        mae_count_sum += torch.sum(abs(preds_counts-target_counts))
+                        mse_density_sum += torch.sum((preds_densities - target_densities)**2).item()
+                        mse_count_sum += torch.sum((preds_counts - target_counts)**2).item()
+                        mae_count_sum += torch.sum(abs(preds_counts-target_counts)).item()
                         num_insts += len(target_insts)
                     mse_density = mse_density_sum / num_insts
                     mse_count = mse_count_sum / num_insts
@@ -282,9 +282,9 @@ for i in range(settings.NUM_DATASETS):
                     target_counts  = torch.tensor(target_counts).float()
                     #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
                     preds_densities, preds_counts = mdan.inference(target_insts)
-                    mse_density = torch.sum(preds_densities - target_densities)**2/preds_densities.shape[0]
-                    mse_count = torch.sum(preds_counts - target_counts)**2/preds_counts.shape[0]
-                    mae_count = torch.sum(abs(preds_counts-target_counts))/preds_counts.shape[0]
+                    mse_density = torch.sum(preds_densities - target_densities).item()**2/preds_densities.shape[0]
+                    mse_count = torch.sum(preds_counts - target_counts).item()**2/preds_counts.shape[0]
+                    mae_count = torch.sum(abs(preds_counts-target_counts)).item()/preds_counts.shape[0]
                 logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}".
                       format(settings.DATASETS[i], mse_count, mse_density, mae_count))
                 if args_dict['use_visdom']:

@@ -2,19 +2,22 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import settings
-from load_data import CameraData, CameraTimeData, FrameData, VehicleData
+from load_data import load_insts, CameraData, CameraTimeData, FrameData, VehicleData
 import load_data
 
 
 if __name__ == '__main__':
     #data = load_data.load_data(1, settings.IMAGE_NEW_SHAPE)
-    data =  load_data.load_data_from_file('first', 'proportional')
+    data =  load_data.load_data_from_file('first', 'first')
     i = 0
     for domain in data:
+        domain = 511
         for ct in data[domain].camera_times:
+            ct = '20160429-15'
             frame_ids = list(data[domain].camera_times[ct].frames.keys())
             frame_ids.sort(reverse=True)
             for id in frame_ids:
+                id = 300
                 frame_data = data[domain].camera_times[ct].frames[id]
                 if frame_data.frame is not None:
                     dict_frame = {'None': frame_data.frame}

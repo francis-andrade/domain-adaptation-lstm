@@ -9,10 +9,63 @@ from model_temporal_double import MDANTemporalDouble
 import torch.optim as optim
 import torch.nn.functional as F
 import pickle
-from load_data import load_data, load_data_from_file, load_data_structure, CameraData, CameraTimeData, FrameData, VehicleData
+from load_data import load_data, load_data_from_file, load_data_structure, load_insts ,CameraData, CameraTimeData, FrameData, VehicleData
 import joblib
 import gc
 import plotter
+import copy
+import os
+
+def eval_mdan(test_insts, test_densities, test_counts, batch_size, loss_plt):
+    with torch.no_grad():
+                mdan.eval()
+                if settings.LOAD_MULTIPLE_FILES:
+                    train_loader = utils.multi_data_loader([test_insts], None, [test_counts], batch_size)
+                    num_insts = 0
+                    mse_density_sum = 0
+                    mse_count_sum = 0
+                    mae_count_sum = 0
+                    for batch_insts, batch_densities, batch_counts in train_loader:
+                        target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
+                        densities = np.array(batch_densities[0], dtype=np.float)
+                        if settings.TEMPORAL:
+                            N, T, C, H, W = densities.shape 
+                            densities = np.reshape(densities, (N*T, C, H, W))
+                        target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
+                        target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
+                        preds_densities, preds_counts = mdan.inference(target_insts)
+                        mse_density_sum += torch.sum((preds_densities - target_densities)**2).item()
+                        mse_count_sum += torch.sum((preds_counts - target_counts)**2).item()
+                        mae_count_sum += torch.sum(abs(preds_counts-target_counts)).item()
+                        num_insts += len(target_insts)
+                    mse_density = mse_density_sum / num_insts
+                    mse_count = mse_count_sum / num_insts
+                    mae_count = mae_count_sum / num_insts
+                else:
+                    target_counts = np.array(test_counts, dtype=np.float)
+                    target_insts = np.array(test_insts, dtype=np.float)
+                    densities = np.array(test_densities, dtype=np.float)
+                    if settings.TEMPORAL:
+                        N, T, C, H, W = densities.shape 
+                    densities = np.reshape(densities, (N*T, C, H, W))
+                    target_densities = densities
+                    target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
+                    target_densities  = torch.tensor(target_densities).float()
+                    target_counts  = torch.tensor(target_counts).float()
+                    #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
+                    preds_densities, preds_counts = mdan.inference(target_insts)
+                    mse_density = torch.sum(preds_densities - target_densities).item()**2/preds_densities.shape[0]
+                    mse_count = torch.sum(preds_counts - target_counts).item()**2/preds_counts.shape[0]
+                    mae_count = torch.sum(abs(preds_counts-target_counts)).item()/preds_counts.shape[0]
+                logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}".
+                      format(settings.DATASETS[i], mse_count, mse_density, mae_count))
+                if args_dict['use_visdom']:
+                    # plot the losses
+                    loss_plt.plot('count error ('+str(domain_id)+')', 'valid', 'MAE', t, mae_count)
+                    loss_plt.plot('density loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_density)
+                    loss_plt.plot('count loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_count)
+
+                return mse_density, mse_count, mae_count
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="Name used to save the log file.", type = str, default="webcamT")
@@ -45,91 +98,11 @@ torch.manual_seed(args.seed)
 logger.info('Started loading data')
 #data = load_data(10)
 #data = joblib.load('temporary.npy')
+
 if settings.LOAD_MULTIPLE_FILES:
-    data = load_data_structure('first')
+    data_insts, data_counts = load_insts('first', None)
 else:
-    data =  load_data_from_file('first', 'first')
-logger.info('Finished loading data')
-
-data_insts, data_counts = [], []
-
-if not settings.LOAD_MULTIPLE_FILES:
-    data_densities = []
-
-for domain_id in data:
-    #print(domain_id)
-    domain_insts, domain_counts = [], []
-    if not settings.LOAD_MULTIPLE_FILES:
-        domain_densities = []
-    
-    new_num_insts = 0
-    for time_id in data[domain_id].camera_times:
-        #print('\t', time_id)
-        if new_num_insts > 20:
-            break
-        new_data_insts, new_data_densities, new_data_counts = {}, {}, {}
-        frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
-        frame_ids.sort()
-        for frame_id in frame_ids:
-            if new_num_insts > 20:
-                break
-            if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
-                frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
-                if settings.LOAD_MULTIPLE_FILES:
-                    new_data_insts.setdefault('None', []).append([domain_id, time_id, frame_id, 'None'])
-                    if settings.USE_DATA_AUGMENTATION:
-                        for aug_key in frame_data.augmentation:
-                            new_data_insts.setdefault(aug_key, []).append([domain_id, time_id, frame_id, aug_key])
-                else:
-                    new_data_insts.setdefault('None', []).append(frame_data.frame / 255)
-                    new_data_densities.setdefault('None', []).append(frame_data.density)
-                    if settings.USE_DATA_AUGMENTATION:
-                        for aug_key in frame_data.augmentation:
-                            new_data_insts.setdefault(aug_key, []).append(frame_data.augmentation[aug_key]/255)
-                            new_data_densities.setdefault(aug_key, []).append(frame_data.density_augmentation[aug_key])
-
-                no_vehicles = len(frame_data.vehicles)
-                new_data_counts.setdefault('None', []).append(no_vehicles)
-                if settings.USE_DATA_AUGMENTATION:
-                    for aug_key in frame_data.augmentation:
-                        new_data_counts.setdefault(aug_key, []).append(no_vehicles)
-                
-                new_num_insts += 1
-            else:
-                print('None')
-        
-        if settings.TEMPORAL:
-            for key in new_data_insts:
-                domain_insts.append(new_data_insts[key])
-                domain_counts.append(new_data_counts[key])
-                if not settings.LOAD_MULTIPLE_FILES:      
-                    domain_densities.append(new_data_densities[key])
-                
-        else:
-            for key in new_data_insts:
-                domain_insts += new_data_insts[key]
-                domain_counts += new_data_counts[key]
-                if not settings.LOAD_MULTIPLE_FILES: 
-                    domain_densities += new_data_densities[key]
-
-    data_insts.append(domain_insts)
-    data_counts.append(domain_counts)
-    if not settings.LOAD_MULTIPLE_FILES:
-        data_densities.append(domain_densities)
-
-if not settings.LOAD_MULTIPLE_FILES:
-    del data
-    print('Deleted data')
-
-
-for domain_id in range(len(data_insts)):
-    if not settings.LOAD_MULTIPLE_FILES:
-        data_insts[domain_id] = np.array(data_insts[domain_id])
-        data_densities[domain_id] = np.array(data_densities[domain_id])
-    data_counts[domain_id] = np.array(data_counts[domain_id])
-
-n_obj = gc.collect()
-print('Objects removed: ', n_obj)
+    data_insts, data_densities, data_counts = load_insts('first', 'first')
 
 if settings.TEMPORAL:
     if settings.LOAD_MULTIPLE_FILES:
@@ -177,7 +150,21 @@ for i in range(settings.NUM_DATASETS):
         #mdan = MDANTemporalCommon(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
     else:
         mdan = MDANet(num_domains).to(device)
+    best_mdan = copy.deepcopy(mdan)
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
+
+    size = len(data_insts[i])
+    indices = np.random.permutation(size)
+    test_idx = indices[int(0.7*size):]
+    test_insts, test_counts = data_insts[test_idx], data_counts[test_idx]
+    if not settings.LOAD_MULTIPLE_FILES:
+        test_densities = data_densities[test_idx]
+    train_idx = indices[:int(0.7*size)]
+    data_insts[i], data_counts[i] = data_insts[i][train_idx], data_counts[i][train_idx]
+    if not settings.TEMPORAL:
+        data_densities[i] = data_densities[i][train_idx]
+    
+
     mdan.train()
     # Training phase.
 
@@ -188,9 +175,9 @@ for i in range(settings.NUM_DATASETS):
             running_density_loss = 0.0
             no_batches = 0
             if settings.LOAD_MULTIPLE_FILES:
-                train_loader = utils.multi_data_loader(data_insts, None, data_counts, batch_size)
+                train_loader = utils.multi_data_loader(data_insts, None, data_counts, batch_size, 'first', 'proportional')
             else:
-                train_loader = utils.multi_data_loader(data_insts, data_densities, data_counts, batch_size)
+                train_loader = utils.multi_data_loader(data_insts, data_densities, data_counts, batch_size, 'first', 'proportional')
             for batch_insts, batch_densities, batch_counts in train_loader:
                 #logger.info("Starting batch")
                 # Build source instances.
@@ -245,59 +232,14 @@ for i in range(settings.NUM_DATASETS):
                 loss_plt.plot('density loss ('+str(settings.DATASETS[i])+')', 'train', 'MSE', t, running_density_loss / no_batches)
                 loss_plt.plot('count loss ('+str(settings.DATASETS[i])+')', 'train', 'MSE', t, running_count_loss / no_batches)
 
-            with torch.no_grad():
-                mdan.eval()
-                if settings.LOAD_MULTIPLE_FILES:
-                    train_loader = utils.multi_data_loader([data_insts[i]], None, [data_counts[i]], batch_size)
-                    num_insts = 0
-                    mse_density_sum = 0
-                    mse_count_sum = 0
-                    mae_count_sum = 0
-                    for batch_insts, batch_densities, batch_counts in train_loader:
-                        target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
-                        densities = np.array(batch_densities[0], dtype=np.float)
-                        if settings.TEMPORAL:
-                            N, T, C, H, W = densities.shape 
-                            densities = np.reshape(densities, (N*T, C, H, W))
-                        target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
-                        target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
-                        preds_densities, preds_counts = mdan.inference(target_insts)
-                        mse_density_sum += torch.sum((preds_densities - target_densities)**2).item()
-                        mse_count_sum += torch.sum((preds_counts - target_counts)**2).item()
-                        mae_count_sum += torch.sum(abs(preds_counts-target_counts)).item()
-                        num_insts += len(target_insts)
-                    mse_density = mse_density_sum / num_insts
-                    mse_count = mse_count_sum / num_insts
-                    mae_count = mae_count_sum / num_insts
-                else:
-                    target_counts = np.array(data_counts[i], dtype=np.float)
-                    target_insts = np.array(data_insts[i], dtype=np.float)
-                    densities = np.array(data_densities[i], dtype=np.float)
-                    if settings.TEMPORAL:
-                        N, T, C, H, W = densities.shape 
-                    densities = np.reshape(densities, (N*T, C, H, W))
-                    target_densities = densities
-                    target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
-                    target_densities  = torch.tensor(target_densities).float()
-                    target_counts  = torch.tensor(target_counts).float()
-                    #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
-                    preds_densities, preds_counts = mdan.inference(target_insts)
-                    mse_density = torch.sum(preds_densities - target_densities).item()**2/preds_densities.shape[0]
-                    mse_count = torch.sum(preds_counts - target_counts).item()**2/preds_counts.shape[0]
-                    mae_count = torch.sum(abs(preds_counts-target_counts)).item()/preds_counts.shape[0]
-                logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}".
-                      format(settings.DATASETS[i], mse_count, mse_density, mae_count))
-                if args_dict['use_visdom']:
-                    # plot the losses
-                    loss_plt.plot('count error ('+str(domain_id)+')', 'valid', 'MAE', t, mae_count)
-                    loss_plt.plot('density loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_density)
-                    loss_plt.plot('count loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_count)
+           
                 
                 if mse_density < results['best density (mse)'][domain_id]:
                     results['best density (mse)'][domain_id] = mse_density
 
                 if mse_count < results['best count (mse)'][domain_id]:
                     results['best count (mse)'][domain_id] = mse_count
+                    best_mdan = copy.deepcopy(mdan)
 
                 if mae_count < results['best count (mae)'][domain_id]:
                     results['best count (mae)'][domain_id] = mae_count
@@ -313,3 +255,4 @@ for i in range(settings.NUM_DATASETS):
 
 logger.info("Prediction accuracy with multiple source domain adaptation using madnNet: ")
 logger.info(results)
+pickle.dump(results, open(os.path.join(settings.DATASET_DIRECTORY, '../results.npy')))

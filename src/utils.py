@@ -100,7 +100,7 @@ def density_map(shape, centers, sigmas, out_shape=None):
     #print(np.sum(D), len(centers))    
     return D
 
-def multi_data_loader(inputs, densities, counts, batch_size):
+def multi_data_loader(inputs, densities, counts, batch_size, prefix_frames, prefix_densities):
     """
     Both inputs, counts and densities are list of numpy arrays, containing instances and labels from multiple sources.
     """
@@ -137,16 +137,16 @@ def multi_data_loader(inputs, densities, counts, batch_size):
                                         batch_sequence_inputs.append(np.zeros((3,)+settings.IMAGE_NEW_SHAPE))
                                         batch_sequence_densities.append(np.zeros((1,)+settings.IMAGE_NEW_SHAPE))
                                 else:
-                                    new_frame = load_data.load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])
-                                    new_density = load_data.load_structure(False, frame[0], frame[1], frame[2], 'proportional', frame[3])
+                                    new_frame = load_data.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])
+                                    new_density = load_data.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])
                                     batch_sequence_inputs.append(new_frame)
                                     batch_sequence_densities.append(new_density)
                             batch_inputs[i] = np.concatenate((batch_inputs[i], np.array([batch_sequence_inputs])))
                             batch_densities[i] = np.concatenate((batch_densities[i], np.array([batch_sequence_densities])))
                         else:
                             frame = inputs[i][indexes[i][k]]
-                            new_frame = np.array([load_data.load_structure(True, frame[0], frame[1], frame[2], 'first', frame[3])])
-                            new_density = np.array([load_data.load_structure(False, frame[0], frame[1], frame[2], 'proportional', frame[3])])
+                            new_frame = np.array([load_data.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])])
+                            new_density = np.array([load_data.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])])
                             batch_inputs[i] = np.concatenate((batch_inputs[i], new_frame))
                             batch_densities[i] = np.concatenate((batch_densities[i], new_density))
                     

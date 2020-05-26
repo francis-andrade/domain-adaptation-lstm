@@ -16,7 +16,7 @@ import plotter
 import copy
 import os
 
-def eval_mdan(test_insts, test_densities, test_counts, batch_size, loss_plt):
+def eval_mdan(mdan, test_insts, test_densities, test_counts, batch_size):
     with torch.no_grad():
                 mdan.eval()
                 if settings.LOAD_MULTIPLE_FILES:
@@ -56,14 +56,7 @@ def eval_mdan(test_insts, test_densities, test_counts, batch_size, loss_plt):
                     preds_densities, preds_counts = mdan.inference(target_insts)
                     mse_density = torch.sum(preds_densities - target_densities).item()**2/preds_densities.shape[0]
                     mse_count = torch.sum(preds_counts - target_counts).item()**2/preds_counts.shape[0]
-                    mae_count = torch.sum(abs(preds_counts-target_counts)).item()/preds_counts.shape[0]
-                logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}".
-                      format(settings.DATASETS[i], mse_count, mse_density, mae_count))
-                if args_dict['use_visdom']:
-                    # plot the losses
-                    loss_plt.plot('count error ('+str(domain_id)+')', 'valid', 'MAE', t, mae_count)
-                    loss_plt.plot('density loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_density)
-                    loss_plt.plot('count loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_count)
+                    mae_count = torch.sum(abs(preds_counts-target_counts)).item()/preds_counts.shape[0]                
 
                 return mse_density, mse_count, mae_count
 
@@ -232,16 +225,29 @@ for i in range(settings.NUM_DATASETS):
                 loss_plt.plot('density loss ('+str(settings.DATASETS[i])+')', 'train', 'MSE', t, running_density_loss / no_batches)
                 loss_plt.plot('count loss ('+str(settings.DATASETS[i])+')', 'train', 'MSE', t, running_count_loss / no_batches)
 
+            if settings.LOAD_MULTIPLE_FILES:
+                densities = None
+            else:
+                densities = data_densities[i]
+            mse_density, mse_count, mae_count = eval_mdan(mdan, data_insts[i], densities, data_counts[i], batch_size)
+
+            logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}".
+                      format(settings.DATASETS[i], mse_count, mse_density, mae_count))
            
-                
-                if mse_density < results['best density (mse)'][domain_id]:
+            if args_dict['use_visdom']:
+                    # plot the losses
+                    loss_plt.plot('count error ('+str(domain_id)+')', 'valid', 'MAE', t, mae_count)
+                    loss_plt.plot('density loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_density)
+                    loss_plt.plot('count loss ('+str(domain_id)+')', 'valid', 'MSE', t, mse_count)
+
+            if mse_density < results['best density (mse)'][domain_id]:
                     results['best density (mse)'][domain_id] = mse_density
 
-                if mse_count < results['best count (mse)'][domain_id]:
+            if mse_count < results['best count (mse)'][domain_id]:
                     results['best count (mse)'][domain_id] = mse_count
                     best_mdan = copy.deepcopy(mdan)
 
-                if mae_count < results['best count (mae)'][domain_id]:
+            if mae_count < results['best count (mae)'][domain_id]:
                     results['best count (mae)'][domain_id] = mae_count
     
     results['density (mse)'][domain_id] = mse_density
@@ -252,6 +258,12 @@ for i in range(settings.NUM_DATASETS):
     #del train_loader, mdan, optimizer, source_insts, source_counts, source_densities, tinputs, target_insts, target_counts, target_densities, preds_densities, preds_counts, model_densities, model_counts, sdomains, tdomains, loss, domain_losses, slabels, tlabels
     #n_obj = gc.collect()
     #print('No. of objects removed: ', n_obj)
+
+if settings.LOAD_MULTIPLE_FILES:
+    densities = None
+else:
+    densities = test_densities
+final_mse_density, final_mse_count, mae_count = eval_mdan(best_mdan, test_insts, densities,test_counts, batch_size)
 
 logger.info("Prediction accuracy with multiple source domain adaptation using madnNet: ")
 logger.info(results)

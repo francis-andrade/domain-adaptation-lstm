@@ -18,9 +18,9 @@ import os
 
 def eval_mdan(mdan, test_insts, test_densities, test_counts, batch_size):
     with torch.no_grad():
-                mdan.eval()
-                if settings.LOAD_MULTIPLE_FILES:
-                    train_loader = utils.multi_data_loader([test_insts], None, [test_counts], batch_size)
+        mdan.eval()
+        if settings.LOAD_MULTIPLE_FILES:
+                    train_loader = utils.multi_data_loader([test_insts], None, [test_counts], batch_size, 'first', 'proportional')
                     num_insts = 0
                     mse_density_sum = 0
                     mse_count_sum = 0
@@ -41,7 +41,7 @@ def eval_mdan(mdan, test_insts, test_densities, test_counts, batch_size):
                     mse_density = mse_density_sum / num_insts
                     mse_count = mse_count_sum / num_insts
                     mae_count = mae_count_sum / num_insts
-                else:
+        else:
                     target_counts = np.array(test_counts, dtype=np.float)
                     target_insts = np.array(test_insts, dtype=np.float)
                     densities = np.array(test_densities, dtype=np.float)
@@ -58,7 +58,7 @@ def eval_mdan(mdan, test_insts, test_densities, test_counts, batch_size):
                     mse_count = torch.sum(preds_counts - target_counts).item()**2/preds_counts.shape[0]
                     mae_count = torch.sum(abs(preds_counts-target_counts)).item()/preds_counts.shape[0]                
 
-                return mse_density, mse_count, mae_count
+        return mse_density, mse_count, mae_count
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="Name used to save the log file.", type = str, default="webcamT")
@@ -130,6 +130,9 @@ results['count (mae)'] = {}
 results['best count (mse)'] = {}
 results['best density (mse)'] = {}
 results['best count (mae)'] = {}
+results['final count (mse)'] = {}
+results['final density (mse)'] = {}
+results['final count (mae)'] = {}
 
 for i in range(settings.NUM_DATASETS):
     domain_id = settings.DATASETS[i]
@@ -141,20 +144,22 @@ for i in range(settings.NUM_DATASETS):
     if settings.TEMPORAL:
         mdan = MDANTemporalDouble(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
         #mdan = MDANTemporalCommon(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
+        best_mdan = MDANTemporalDouble(num_domains, settings.IMAGE_NEW_SHAPE).to(device)
     else:
         mdan = MDANet(num_domains).to(device)
-    best_mdan = copy.deepcopy(mdan)
+        best_mdan = MDANet(num_domains).to(device)
+
     optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
 
     size = len(data_insts[i])
     indices = np.random.permutation(size)
     test_idx = indices[int(0.7*size):]
-    test_insts, test_counts = data_insts[test_idx], data_counts[test_idx]
+    test_insts, test_counts = data_insts[i][test_idx], data_counts[i][test_idx]
     if not settings.LOAD_MULTIPLE_FILES:
         test_densities = data_densities[test_idx]
     train_idx = indices[:int(0.7*size)]
     data_insts[i], data_counts[i] = data_insts[i][train_idx], data_counts[i][train_idx]
-    if not settings.TEMPORAL:
+    if not settings.LOAD_MULTIPLE_FILES:
         data_densities[i] = data_densities[i][train_idx]
     
 
@@ -245,7 +250,7 @@ for i in range(settings.NUM_DATASETS):
 
             if mse_count < results['best count (mse)'][domain_id]:
                     results['best count (mse)'][domain_id] = mse_count
-                    best_mdan = copy.deepcopy(mdan)
+                    best_mdan.load_state_dict(mdan.state_dict())
 
             if mae_count < results['best count (mae)'][domain_id]:
                     results['best count (mae)'][domain_id] = mae_count
@@ -253,18 +258,26 @@ for i in range(settings.NUM_DATASETS):
     results['density (mse)'][domain_id] = mse_density
     results['count (mse)'][domain_id] = mse_count
     results['count (mae)'][domain_id] = mae_count
+
+    if settings.LOAD_MULTIPLE_FILES:
+        densities = None
+    else:
+        densities = test_densities
+    final_mse_density, final_mse_count, final_mae_count = eval_mdan(best_mdan, test_insts, densities,test_counts, batch_size)
+
+    results['final density (mse)'][domain_id] = final_mse_density
+    results['final count (mse)'][domain_id] = final_mse_count
+    results['final count (mae)'][domain_id] = final_mae_count
                 
     
     #del train_loader, mdan, optimizer, source_insts, source_counts, source_densities, tinputs, target_insts, target_counts, target_densities, preds_densities, preds_counts, model_densities, model_counts, sdomains, tdomains, loss, domain_losses, slabels, tlabels
     #n_obj = gc.collect()
     #print('No. of objects removed: ', n_obj)
 
-if settings.LOAD_MULTIPLE_FILES:
-    densities = None
-else:
-    densities = test_densities
-final_mse_density, final_mse_count, mae_count = eval_mdan(best_mdan, test_insts, densities,test_counts, batch_size)
+
+
+
 
 logger.info("Prediction accuracy with multiple source domain adaptation using madnNet: ")
 logger.info(results)
-pickle.dump(results, open(os.path.join(settings.DATASET_DIRECTORY, '../results.npy')))
+pickle.dump(results, open(os.path.join(settings.DATASET_DIRECTORY, '../results.npy'), 'wb+'))

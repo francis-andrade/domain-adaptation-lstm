@@ -468,9 +468,9 @@ def load_insts(prefix_data, prefix_frames):
 
     for domain_id in range(len(data_insts)):
         if not settings.LOAD_MULTIPLE_FILES:
-            data_insts[domain_id] = np.array(data_insts[domain_id])
             data_densities[domain_id] = np.array(data_densities[domain_id])
-        data_counts[domain_id] = np.array(data_counts[domain_id])  
+        data_counts[domain_id] = np.array(data_counts[domain_id]) 
+        data_insts[domain_id] = np.array(data_insts[domain_id]) 
     
     if settings.LOAD_MULTIPLE_FILES:
         return data_insts, data_counts

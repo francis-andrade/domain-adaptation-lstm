@@ -30,12 +30,13 @@ parser.add_argument("-m", "--model", help="Choose a model to train: [mdan]",
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
 parser.add_argument('-l', '--lambda', default=1e-3, type=float, metavar='', help='trade-off between density estimation and vehicle count losses (see eq. 7 in the paper)')
-parser.add_argument("-e", "--epoch", help="Number of training epochs", type=int, default=1)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=2)
+parser.add_argument("-e", "--epochs", help="Number of training epochs", type=int, default=1)
+parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=10)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 parser.add_argument('--use_visdom', default=False, type=int, metavar='', help='use Visdom to visualize plots')
 parser.add_argument('--visdom_env', default='MDAN', type=str, metavar='', help='Visdom environment name')
 parser.add_argument('--visdom_port', default=8444, type=int, metavar='', help='Visdom port')
+parser.add_argument('--results_file', default='results', type=str, metavar='', help = 'Name for results file')
 # Compile and configure all the model parameters.
 args = parser.parse_args()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -51,9 +52,9 @@ logger.info('Started loading data')
 #data = joblib.load('temporary.npy')
 
 if settings.LOAD_MULTIPLE_FILES:
-    data_insts, data_counts = load_insts('first', None)
+    data_insts, data_counts = load_insts('first', None, 100)
 else:
-    data_insts, data_densities, data_counts = load_insts('first', 'first')
+    data_insts, data_densities, data_counts = load_insts('first', 'first', 100)
 
 if settings.TEMPORAL:
     if settings.LOAD_MULTIPLE_FILES:
@@ -63,7 +64,7 @@ if settings.TEMPORAL:
 
 ##############################
 ################################
-num_epochs = args.epoch
+num_epochs = args.epochs
 batch_size = args.batch_size
 num_domains = settings.NUM_DATASETS - 1
 lr = 0.0001
@@ -124,7 +125,7 @@ for i in range(settings.NUM_DATASETS):
     mdan.train()
     # Training phase.
 
-    logger.info("Start training...")
+    logger.info("Start training Domain: {}...".format(str(settings.DATASETS[i])))
     for t in range(num_epochs):
             running_loss = 0.0
             running_count_loss = 0.0
@@ -194,8 +195,8 @@ for i in range(settings.NUM_DATASETS):
                 densities = data_densities[i]
             mse_density, mse_count, mae_count = utils.eval_mdan(mdan, data_insts[i], densities, data_counts[i], batch_size, device)
 
-            logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}".
-                      format(settings.DATASETS[i], mse_count, mse_density, mae_count))
+            logger.info("Validation, Count MSE: {}, Density MSE: {}, Count MAE: {}".
+                      format(mse_count, mse_density, mae_count))
            
             if args_dict['use_visdom']:
                     # plot the losses
@@ -226,7 +227,9 @@ for i in range(settings.NUM_DATASETS):
     results['final density (mse)'][domain_id] = final_mse_density
     results['final count (mse)'][domain_id] = final_mse_count
     results['final count (mae)'][domain_id] = final_mae_count
-                
+    
+    logger.info("Testing, Count MSE: {}, Density MSE: {}, Count MAE: {}".
+                      format(final_mse_count, final_mse_density, final_mae_count))
     
     #del train_loader, mdan, optimizer, source_insts, source_counts, source_densities, tinputs, target_insts, target_counts, target_densities, preds_densities, preds_counts, model_densities, model_counts, sdomains, tdomains, loss, domain_losses, slabels, tlabels
     #n_obj = gc.collect()
@@ -238,4 +241,4 @@ for i in range(settings.NUM_DATASETS):
 
 logger.info("Prediction accuracy with multiple source domain adaptation using madnNet: ")
 logger.info(results)
-pickle.dump(results, open(os.path.join(settings.DATASET_DIRECTORY, '../results.npy'), 'wb+'))
+pickle.dump(results, open(os.path.join(settings.DATASET_DIRECTORY, '../'+args.results_file+'.npy'), 'wb+'))

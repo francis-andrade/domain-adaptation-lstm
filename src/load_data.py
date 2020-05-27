@@ -390,7 +390,7 @@ def load_data_from_file(prefix_data, prefix_densities):
     
     return data
 
-def load_insts(prefix_data, prefix_frames):
+def load_insts(prefix_data, prefix_frames, max_insts_per_domain=None):
     if settings.LOAD_MULTIPLE_FILES:
         data = load_data_structure(prefix_data)
     else:
@@ -411,13 +411,13 @@ def load_insts(prefix_data, prefix_frames):
         new_num_insts = 0
         for time_id in data[domain_id].camera_times:
             #print('\t', time_id)
-            if new_num_insts > 20:
+            if max_insts_per_domain is not None and new_num_insts > max_insts_per_domain:
                 break
             new_data_insts, new_data_densities, new_data_counts = {}, {}, {}
             frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
             frame_ids.sort()
             for frame_id in frame_ids:
-                if new_num_insts > 20:
+                if max_insts_per_domain is not None and new_num_insts > max_insts_per_domain:
                     break
                 if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
                     frame_data = data[domain_id].camera_times[time_id].frames[frame_id]

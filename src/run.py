@@ -16,49 +16,7 @@ import plotter
 import copy
 import os
 
-def eval_mdan(mdan, test_insts, test_densities, test_counts, batch_size):
-    with torch.no_grad():
-        mdan.eval()
-        if settings.LOAD_MULTIPLE_FILES:
-                    train_loader = utils.multi_data_loader([test_insts], None, [test_counts], batch_size, 'first', 'proportional')
-                    num_insts = 0
-                    mse_density_sum = 0
-                    mse_count_sum = 0
-                    mae_count_sum = 0
-                    for batch_insts, batch_densities, batch_counts in train_loader:
-                        target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
-                        densities = np.array(batch_densities[0], dtype=np.float)
-                        if settings.TEMPORAL:
-                            N, T, C, H, W = densities.shape 
-                            densities = np.reshape(densities, (N*T, C, H, W))
-                        target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
-                        target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
-                        preds_densities, preds_counts = mdan.inference(target_insts)
-                        mse_density_sum += torch.sum((preds_densities - target_densities)**2).item()
-                        mse_count_sum += torch.sum((preds_counts - target_counts)**2).item()
-                        mae_count_sum += torch.sum(abs(preds_counts-target_counts)).item()
-                        num_insts += len(target_insts)
-                    mse_density = mse_density_sum / num_insts
-                    mse_count = mse_count_sum / num_insts
-                    mae_count = mae_count_sum / num_insts
-        else:
-                    target_counts = np.array(test_counts, dtype=np.float)
-                    target_insts = np.array(test_insts, dtype=np.float)
-                    densities = np.array(test_densities, dtype=np.float)
-                    if settings.TEMPORAL:
-                        N, T, C, H, W = densities.shape 
-                    densities = np.reshape(densities, (N*T, C, H, W))
-                    target_densities = densities
-                    target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
-                    target_densities  = torch.tensor(target_densities).float()
-                    target_counts  = torch.tensor(target_counts).float()
-                    #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
-                    preds_densities, preds_counts = mdan.inference(target_insts)
-                    mse_density = torch.sum(preds_densities - target_densities).item()**2/preds_densities.shape[0]
-                    mse_count = torch.sum(preds_counts - target_counts).item()**2/preds_counts.shape[0]
-                    mae_count = torch.sum(abs(preds_counts-target_counts)).item()/preds_counts.shape[0]                
 
-        return mse_density, mse_count, mae_count
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="Name used to save the log file.", type = str, default="webcamT")
@@ -234,7 +192,7 @@ for i in range(settings.NUM_DATASETS):
                 densities = None
             else:
                 densities = data_densities[i]
-            mse_density, mse_count, mae_count = eval_mdan(mdan, data_insts[i], densities, data_counts[i], batch_size)
+            mse_density, mse_count, mae_count = utils.eval_mdan(mdan, data_insts[i], densities, data_counts[i], batch_size, device)
 
             logger.info("Domain {}:-\n\t Count MSE: {}, Density MSE: {}, Count MAE: {}".
                       format(settings.DATASETS[i], mse_count, mse_density, mae_count))
@@ -263,7 +221,7 @@ for i in range(settings.NUM_DATASETS):
         densities = None
     else:
         densities = test_densities
-    final_mse_density, final_mse_count, final_mae_count = eval_mdan(best_mdan, test_insts, densities,test_counts, batch_size)
+    final_mse_density, final_mse_count, final_mae_count = utils.eval_mdan(best_mdan, test_insts, densities,test_counts, batch_size, device)
 
     results['final density (mse)'][domain_id] = final_mse_density
     results['final count (mse)'][domain_id] = final_mse_count

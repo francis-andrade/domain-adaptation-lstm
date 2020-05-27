@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import settings
 import load_data
+import torch
 #import skimage.transform as SkT
 
 def isInteger(str):
@@ -234,89 +235,49 @@ def group_sequences_load_multiple_files(inputs, counts, sequence_size = None):
     
     return seq_inputs, seq_counts
 
-def rotate(shape, coordinate_x, coordinate_y, angle):
-    """
-    Function that given a set of coordinates of a cell square matrix, returns the new coordinates of that cell after a rotation has been applied.  
-    
-    Args:
-        size: size of the matrix
-        coordinate_x: X coordinate of the cell
-        coordinate_y: Y coordinate of the cell
-        angle: Angle of the rotation. Must be in [180]
-    
-    Returns:
-        New coordinates of the cell to which a rotation has been applied.
-    Raises:
-        ValueError: If angle doesn't belong to [180]
-    """
-    H,W  = shape
-    if angle == 180:
-        return W - 1 - coordinate_x, H - 1 - coordinate_y
-    else:
-        raise ValueError('The angle of a rotation can only be one of [180]')
+def eval_mdan(mdan, test_insts, test_densities, test_counts, batch_size, device):
+    with torch.no_grad():
+        mdan.eval()
+        if settings.LOAD_MULTIPLE_FILES:
+                    train_loader = multi_data_loader([test_insts], None, [test_counts], batch_size, 'first', 'proportional')
+                    num_insts = 0
+                    mse_density_sum = 0
+                    mse_count_sum = 0
+                    mae_count_sum = 0
+                    for batch_insts, batch_densities, batch_counts in train_loader:
+                        target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
+                        densities = np.array(batch_densities[0], dtype=np.float)
+                        if settings.TEMPORAL:
+                            N, T, C, H, W = densities.shape 
+                            densities = np.reshape(densities, (N*T, C, H, W))
+                        target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
+                        target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
+                        preds_densities, preds_counts = mdan.inference(target_insts)
+                        mse_density_sum += torch.sum((preds_densities - target_densities)**2).item()
+                        mse_count_sum += torch.sum((preds_counts - target_counts)**2).item()
+                        mae_count_sum += torch.sum(abs(preds_counts-target_counts)).item()
+                        num_insts += len(target_insts)
+                    mse_density = mse_density_sum / num_insts
+                    mse_count = mse_count_sum / num_insts
+                    mae_count = mae_count_sum / num_insts
+        else:
+                    target_counts = np.array(test_counts, dtype=np.float)
+                    target_insts = np.array(test_insts, dtype=np.float)
+                    densities = np.array(test_densities, dtype=np.float)
+                    if settings.TEMPORAL:
+                        N, T, C, H, W = densities.shape 
+                    densities = np.reshape(densities, (N*T, C, H, W))
+                    target_densities = densities
+                    target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
+                    target_densities  = torch.tensor(target_densities).float()
+                    target_counts  = torch.tensor(target_counts).float()
+                    #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
+                    preds_densities, preds_counts = mdan.inference(target_insts)
+                    mse_density = torch.sum(preds_densities - target_densities).item()**2/preds_densities.shape[0]
+                    mse_count = torch.sum(preds_counts - target_counts).item()**2/preds_counts.shape[0]
+                    mae_count = torch.sum(abs(preds_counts-target_counts)).item()/preds_counts.shape[0]                
 
-
-def symmetric(shape, coordinate_x, coordinate_y, angle_axis):
-    """
-    Function that given a set of coordinates of a cell square matrix, returns the new coordinates of that cell after a symmetry has been applied.  
-    
-    Args:
-        shape: size of the matrix
-        coordinate_x: X coordinate of the cell
-        coordinate_y: Y coordinate of the cell
-        angle: Angle of the rotation. Must be in [0, 90]
-    
-    Returns:
-        New coordinates of the cell to which a symmetry has been applied.
-    Raises:
-        ValueError: If angle doesn't belong to [0, 90]
-    """
-    H,W  = shape
-    if angle_axis == 0:
-        return coordinate_x, H - 1 - coordinate_y
-    elif angle_axis == 90:
-        return W - 1 - coordinate_x, coordinate_y
-    else:
-        raise ValueError('The angle of a symmetry can only be one of [0, 90]')
-
-
-def change_brightness_contrast(matrix, brightness, contrast):
-    matrix = matrix * (contrast/127+1) - contrast + brightness
-    matrix = np.clip(matrix, 0, 255)
-    return matrix
-
-def transform_matrix(matrix, function, angle):
-    """
-    Function that applies a transformation (rotation or symmetry) to a matrix  
-    
-    Args:
-        matrix: Matrix to be transformed
-        function: Function that defines the transformation to apply (rotate or symmetry)
-        angle: Angle of the transformation
-    
-    Returns:
-        New matrix to which the original matrix was transformed to.
-    Raises:
-        ValueError: If matrix is empty (i.e. has size 0)
-    """
-    if len(matrix) == 0:
-        raise ValueError('The matrix must have size bigger than 0')
-
-    new_matrix = np.empty(matrix.shape, dtype = 'float')
-    for coordinate_y in range(len(matrix)):
-        for coordinate_x in range(len(matrix[coordinate_y])):
-            new_x, new_y = function(matrix.shape, coordinate_x, coordinate_y, angle)
-            new_matrix[new_y][new_x] = matrix[coordinate_y][coordinate_x]
-    return new_matrix    
-
-
-
-def transform_matrix_channels(matrix, function, angle):
-    C, H, W = matrix.shape
-    new_matrix = np.empty(matrix.shape, dtype='float')
-    for channel in range(C):
-         new_matrix[channel] = transform_matrix(matrix[channel], function, angle)
-    return new_matrix
+        return mse_density, mse_count, mae_count
 
 '''
 def show_images(plt, var_name, X, density, count, shape=None):

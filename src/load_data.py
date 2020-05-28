@@ -409,15 +409,17 @@ def load_insts(prefix_data, prefix_frames, max_insts_per_domain=None):
             domain_densities = []
     
         new_num_insts = 0
-        for time_id in data[domain_id].camera_times:
+        camera_times_ids = list(data[domain_id].camera_times.keys())
+        camera_times_ids.sort()
+        for time_id in camera_times_ids:
             #print('\t', time_id)
-            if max_insts_per_domain is not None and new_num_insts > max_insts_per_domain:
+            if max_insts_per_domain is not None and new_num_insts >= max_insts_per_domain:
                 break
             new_data_insts, new_data_densities, new_data_counts = {}, {}, {}
             frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
             frame_ids.sort()
             for frame_id in frame_ids:
-                if max_insts_per_domain is not None and new_num_insts > max_insts_per_domain:
+                if max_insts_per_domain is not None and new_num_insts >= max_insts_per_domain:
                     break
                 if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
                     frame_data = data[domain_id].camera_times[time_id].frames[frame_id]

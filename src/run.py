@@ -19,20 +19,20 @@ import os
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-n", "--name", help="Name used to save the log file.", type = str, default="webcamT")
+parser.add_argument("--name", help="Name used to save the log file.", type = str, default="webcamT")
 
-parser.add_argument("-s", "--seed", help="Random seed.", type=int, default=42)
-parser.add_argument("-v", "--verbose", help="Verbose mode: True -- show training progress. False -- "
+parser.add_argument("--seed", help="Random seed.", type=int, default=42)
+parser.add_argument("--verbose", help="Verbose mode: True -- show training progress. False -- "
                                             "not show training progress.", type=bool, default=True)
-parser.add_argument("-m", "--model", help="Choose a model to train: [mdan]",
+parser.add_argument("--model", help="Choose a model to train: [mdan]",
                     type=str, default="mdan")
 
-parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
+parser.add_argument("--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
-parser.add_argument('-l', '--lambda', default=1e-3, type=float, metavar='', help='trade-off between density estimation and vehicle count losses (see eq. 7 in the paper)')
-parser.add_argument("-e", "--epochs", help="Number of training epochs", type=int, default=2)
-parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=10)
-parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
+parser.add_argument('--lambda', default=1e-3, type=float, metavar='', help='trade-off between density estimation and vehicle count losses (see eq. 7 in the paper)')
+parser.add_argument("--epochs", help="Number of training epochs", type=int, default=2)
+parser.add_argument("--batch_size", help="Batch size during training", type=int, default=10)
+parser.add_argument("--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 parser.add_argument('--use_visdom', default=False, type=int, metavar='', help='use Visdom to visualize plots')
 parser.add_argument('--visdom_env', default='MDAN', type=str, metavar='', help='Visdom environment name')
 parser.add_argument('--visdom_port', default=8444, type=int, metavar='', help='Visdom port')
@@ -42,7 +42,7 @@ args = parser.parse_args()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 logger = utils.get_logger(args.name)
-
+logger.info("Using device: "+str(device))
 # Set random number seed.
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)

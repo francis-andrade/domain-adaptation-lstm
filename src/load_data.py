@@ -402,7 +402,7 @@ def load_insts(prefix_data, prefix_frames, max_insts_per_domain=None):
     if not settings.LOAD_MULTIPLE_FILES:
         data_densities = []
 
-    for domain_id in data:
+    for domain_id in settings.DATASETS:
         #print(domain_id)
         domain_insts, domain_counts = [], []
         if not settings.LOAD_MULTIPLE_FILES:

@@ -30,7 +30,7 @@ parser.add_argument("-m", "--model", help="Choose a model to train: [mdan]",
 parser.add_argument("-u", "--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
 parser.add_argument('-l', '--lambda', default=1e-3, type=float, metavar='', help='trade-off between density estimation and vehicle count losses (see eq. 7 in the paper)')
-parser.add_argument("-e", "--epochs", help="Number of training epochs", type=int, default=1)
+parser.add_argument("-e", "--epochs", help="Number of training epochs", type=int, default=2)
 parser.add_argument("-b", "--batch_size", help="Batch size during training", type=int, default=10)
 parser.add_argument("-o", "--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
 parser.add_argument('--use_visdom', default=False, type=int, metavar='', help='use Visdom to visualize plots')
@@ -52,9 +52,9 @@ logger.info('Started loading data')
 #data = joblib.load('temporary.npy')
 
 if settings.LOAD_MULTIPLE_FILES:
-    data_insts, data_counts = load_insts('first', None, 100)
+    data_insts, data_counts = load_insts('first', None, 50)
 else:
-    data_insts, data_densities, data_counts = load_insts('first', 'first', 100)
+    data_insts, data_densities, data_counts = load_insts('first', 'first', 50)
 
 if settings.TEMPORAL:
     if settings.LOAD_MULTIPLE_FILES:
@@ -116,10 +116,10 @@ for i in range(settings.NUM_DATASETS):
     test_insts, test_counts = data_insts[i][test_idx], data_counts[i][test_idx]
     if not settings.LOAD_MULTIPLE_FILES:
         test_densities = data_densities[test_idx]
-    train_idx = indices[:int(0.7*size)]
-    data_insts[i], data_counts[i] = data_insts[i][train_idx], data_counts[i][train_idx]
+    val_idx = indices[:int(0.7*size)]
+    val_insts, val_counts = data_insts[i][val_idx], data_counts[i][val_idx]
     if not settings.LOAD_MULTIPLE_FILES:
-        data_densities[i] = data_densities[i][train_idx]
+        val_densities = data_densities[i][val_idx]
     
 
     mdan.train()
@@ -192,8 +192,8 @@ for i in range(settings.NUM_DATASETS):
             if settings.LOAD_MULTIPLE_FILES:
                 densities = None
             else:
-                densities = data_densities[i]
-            mse_density, mse_count, mae_count = utils.eval_mdan(mdan, data_insts[i], densities, data_counts[i], batch_size, device)
+                densities = val_densities
+            mse_density, mse_count, mae_count = utils.eval_mdan(mdan, val_insts, densities, val_counts, batch_size, device)
 
             logger.info("Validation, Count MSE: {}, Density MSE: {}, Count MAE: {}".
                       format(mse_count, mse_density, mae_count))

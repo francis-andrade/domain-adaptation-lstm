@@ -178,6 +178,8 @@ for i in range(settings.NUM_DATASETS):
                     loss = torch.max(losses) + mu * torch.min(domain_losses)
                 elif mode == "dynamic":
                     loss = torch.log(torch.sum(torch.exp(gamma * (losses + mu * domain_losses)))) / gamma
+                elif mode == 'average':
+                    loss = torch.mean(losses+mu*domain_losses)
                 else:
                     raise ValueError("No support for the training mode on madnNet: {}.".format(mode))
                 no_batches += 1

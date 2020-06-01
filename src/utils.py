@@ -232,6 +232,7 @@ def group_sequences_load_multiple_files(inputs, counts, sequence_size = None):
                     seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
         
             seq_counts[i] = np.array(seq_counts[i])
+            seq_inputs[i] = np.array(seq_inputs[i])
     
     return seq_inputs, seq_counts
 
@@ -266,7 +267,7 @@ def eval_mdan(mdan, test_insts, test_densities, test_counts, batch_size, device)
                     densities = np.array(test_densities, dtype=np.float)
                     if settings.TEMPORAL:
                         N, T, C, H, W = densities.shape 
-                    densities = np.reshape(densities, (N*T, C, H, W))
+                        densities = np.reshape(densities, (N*T, C, H, W))
                     target_densities = densities
                     target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
                     target_densities  = torch.tensor(target_densities).float()

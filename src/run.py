@@ -32,14 +32,14 @@ parser.add_argument("--mu", help="Hyperparameter of the coefficient for the doma
 parser.add_argument('--lambda', default=1e-3, type=float, metavar='', help='trade-off between density estimation and vehicle count losses (see eq. 7 in the paper)')
 parser.add_argument("--epochs", help="Number of training epochs", type=int, default=2)
 parser.add_argument("--batch_size", help="Batch size during training", type=int, default=10)
-parser.add_argument("--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic]", type=str, default="maxmin")
+parser.add_argument("--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic|average]", type=str, default="maxmin")
 parser.add_argument('--use_visdom', default=False, type=int, metavar='', help='use Visdom to visualize plots')
 parser.add_argument('--visdom_env', default='MDAN', type=str, metavar='', help='Visdom environment name')
 parser.add_argument('--visdom_port', default=8444, type=int, metavar='', help='Visdom port')
 parser.add_argument('--results_file', default='results', type=str, metavar='', help = 'Name for results file')
 # Compile and configure all the model parameters.
 args = parser.parse_args()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
 logger = utils.get_logger(args.name)
 logger.info("Using device: "+str(device))
@@ -55,6 +55,8 @@ if settings.LOAD_MULTIPLE_FILES:
     data_insts, data_counts = load_insts('first', None, 50)
 else:
     data_insts, data_densities, data_counts = load_insts('first', 'first', 50)
+
+
 
 if settings.TEMPORAL:
     if settings.LOAD_MULTIPLE_FILES:
@@ -108,25 +110,29 @@ for i in range(settings.NUM_DATASETS):
         mdan = MDANet(num_domains).to(device)
         best_mdan = MDANet(num_domains).to(device)
 
-    optimizer = optim.Adadelta(mdan.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(mdan.parameters(), lr=lr, weight_decay=0)
 
+    #if settings.USE_DATA_AUGMENTATION and settings.LOAD_MULTIPLE_FILES:
+    #    data
     size = len(data_insts[i])
     indices = np.random.permutation(size)
-    test_idx = indices[int(0.7*size):]
+    test_idx = indices[int(settings.VALIDATION_TEST_RATIO*size):]
     test_insts, test_counts = data_insts[i][test_idx], data_counts[i][test_idx]
     if not settings.LOAD_MULTIPLE_FILES:
         test_densities = data_densities[test_idx]
-    val_idx = indices[:int(0.7*size)]
+    val_idx = indices[:int(settings.VALIDATION_TEST_RATIO*size)]
     val_insts, val_counts = data_insts[i][val_idx], data_counts[i][val_idx]
     if not settings.LOAD_MULTIPLE_FILES:
         val_densities = data_densities[i][val_idx]
     
+            
 
-    mdan.train()
+    
     # Training phase.
 
     logger.info("Start training Domain: {}...".format(str(settings.DATASETS[i])))
     for t in range(num_epochs):
+            mdan.train()
             running_loss = 0.0
             running_count_loss = 0.0
             running_density_loss = 0.0
@@ -230,12 +236,6 @@ for i in range(settings.NUM_DATASETS):
     
     logger.info("Testing, Count MSE: {}, Density MSE: {}, Count MAE: {}".
                       format(final_mse_count, final_mse_density, final_mae_count))
-    
-    #del train_loader, mdan, optimizer, source_insts, source_counts, source_densities, tinputs, target_insts, target_counts, target_densities, preds_densities, preds_counts, model_densities, model_counts, sdomains, tdomains, loss, domain_losses, slabels, tlabels
-    #n_obj = gc.collect()
-    #print('No. of objects removed: ', n_obj)
-
-
 
 
 

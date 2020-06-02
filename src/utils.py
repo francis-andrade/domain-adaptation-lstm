@@ -101,7 +101,7 @@ def density_map(shape, centers, sigmas, out_shape=None):
     #print(np.sum(D), len(centers))    
     return D
 
-def multi_data_loader(inputs, densities, counts, batch_size, prefix_frames, prefix_densities):
+def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densities):
     """
     Both inputs, counts and densities are list of numpy arrays, containing instances and labels from multiple sources.
     """
@@ -118,7 +118,6 @@ def multi_data_loader(inputs, densities, counts, batch_size, prefix_frames, pref
     for j in range(num_blocks):
         batch_inputs, batch_counts, batch_densities = [], [], []
         for i in range(num_domains):
-                if settings.LOAD_MULTIPLE_FILES:
                     batch_counts.append(counts[i][indexes[i][j*batch_size:(j+1)*batch_size]])
                     if settings.TEMPORAL:
                         sequence_size = len(inputs[i][0])
@@ -150,60 +149,12 @@ def multi_data_loader(inputs, densities, counts, batch_size, prefix_frames, pref
                             new_density = np.array([load_data.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])])
                             batch_inputs[i] = np.concatenate((batch_inputs[i], new_frame))
                             batch_densities[i] = np.concatenate((batch_densities[i], new_density))
-                    
-                else:
-                    batch_inputs.append(inputs[i][indexes[i][j*batch_size:min((j+1)*batch_size, min_input_size)]])
-                    batch_counts.append(counts[i][indexes[i][j*batch_size:min((j+1)*batch_size, min_input_size)]])
-                    batch_densities.append(densities[i][indexes[i][j*batch_size:min((j+1)*batch_size, min_input_size)]])
-
 
         yield batch_inputs, batch_densities, batch_counts
 
 
-def group_sequences(inputs, densities, counts, sequence_size=None):
 
-    num_domains = len(inputs)
-    input_shape = inputs[0][0][0].shape
-    density_shape = densities[0][0][0].shape
-
-    if sequence_size is None:
-        seq_inputs, seq_counts, seq_densities = inputs, counts, densities 
-        max_lens = [np.max([len(inputs[i][j] for j in range(len(inputs[i])))]) for i in range(num_domains)]
-        for i in range(num_domains):
-            for j in range(len(inputs[i])):
-                if len(seq_inputs[i][-1]) < max_lens[i]:
-                    diff = max_lens[i] - len(seq_inputs[i][-1])
-                    seq_inputs[i][-1] = np.concatenate((seq_inputs[i][-1] , np.zeros((diff,)+input_shape)))
-                    seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
-                    seq_densities[i][-1] = np.concatenate((seq_densities[i][-1] , np.zeros((diff,)+density_shape)))
-    else:
-        seq_inputs, seq_counts, seq_densities = [], [], []
-        for i in range(num_domains):
-            seq_inputs.append([])
-            seq_counts.append([])
-            seq_densities.append([])
-            for j in range(len(inputs[i])):
-                num_blocks = int(np.ceil(len(inputs[i][j]) / sequence_size))
-                for k in range(num_blocks):
-                    seq_inputs[i].append(inputs[i][j][k*sequence_size:(k+1)*sequence_size])
-                    seq_counts[i].append(counts[i][j][k*sequence_size:(k+1)*sequence_size])
-                    seq_densities[i].append(densities[i][j][k*sequence_size:(k+1)*sequence_size])
-
-                if len(seq_inputs[i][-1]) < sequence_size:
-                    diff = sequence_size - len(seq_inputs[i][-1])
-                    seq_inputs[i][-1] = np.concatenate((seq_inputs[i][-1] , np.zeros((diff,)+input_shape)))
-                    seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
-                    seq_densities[i][-1] = np.concatenate((seq_densities[i][-1] , np.zeros((diff,)+density_shape)))
-            
-            seq_inputs[i] = np.array(seq_inputs[i])
-            seq_counts[i] = np.array(seq_counts[i])
-            seq_densities[i] = np.array(seq_densities[i])
-
-
-    return seq_inputs, seq_densities, seq_counts
-
-
-def group_sequences_load_multiple_files(inputs, counts, sequence_size = None):
+def group_sequences(inputs, counts, sequence_size = None):
     num_domains = len(inputs)
 
     if sequence_size is None:
@@ -236,47 +187,33 @@ def group_sequences_load_multiple_files(inputs, counts, sequence_size = None):
     
     return seq_inputs, seq_counts
 
-def eval_mdan(mdan, test_insts, test_densities, test_counts, batch_size, device):
+num_insts = None
+train_loader = None
+def eval_mdan(mdan, test_insts, test_counts, batch_size, device, prefix_frames, prefix_densities):
+    global num_insts, train_loader
     with torch.no_grad():
         mdan.eval()
-        if settings.LOAD_MULTIPLE_FILES:
-                    train_loader = multi_data_loader([test_insts], None, [test_counts], batch_size, 'first', 'proportional')
-                    num_insts = 0
-                    mse_density_sum = 0
-                    mse_count_sum = 0
-                    mae_count_sum = 0
-                    for batch_insts, batch_densities, batch_counts in train_loader:
-                        target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
-                        densities = np.array(batch_densities[0], dtype=np.float)
-                        if settings.TEMPORAL:
-                            N, T, C, H, W = densities.shape 
-                            densities = np.reshape(densities, (N*T, C, H, W))
-                        target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
-                        target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
-                        preds_densities, preds_counts = mdan.inference(target_insts)
-                        mse_density_sum += torch.sum((preds_densities - target_densities)**2).item()
-                        mse_count_sum += torch.sum((preds_counts - target_counts)**2).item()
-                        mae_count_sum += torch.sum(abs(preds_counts-target_counts)).item()
-                        num_insts += len(target_insts)
-                    mse_density = mse_density_sum / num_insts
-                    mse_count = mse_count_sum / num_insts
-                    mae_count = mae_count_sum / num_insts
-        else:
-                    target_counts = np.array(test_counts, dtype=np.float)
-                    target_insts = np.array(test_insts, dtype=np.float)
-                    densities = np.array(test_densities, dtype=np.float)
-                    if settings.TEMPORAL:
-                        N, T, C, H, W = densities.shape 
-                        densities = np.reshape(densities, (N*T, C, H, W))
-                    target_densities = densities
-                    target_insts = torch.tensor(target_insts, requires_grad=False).float().to(device)
-                    target_densities  = torch.tensor(target_densities).float()
-                    target_counts  = torch.tensor(target_counts).float()
-                    #preds_labels = torch.max(mdan.inference(target_insts), 1)[1].cpu().data.squeeze_()
-                    preds_densities, preds_counts = mdan.inference(target_insts)
-                    mse_density = torch.sum(preds_densities - target_densities).item()**2/preds_densities.shape[0]
-                    mse_count = torch.sum(preds_counts - target_counts).item()**2/preds_counts.shape[0]
-                    mae_count = torch.sum(abs(preds_counts-target_counts)).item()/preds_counts.shape[0]                
+        train_loader = multi_data_loader([test_insts], [test_counts], batch_size, prefix_frames, prefix_densities)
+        num_insts = 0
+        mse_density_sum = 0
+        mse_count_sum = 0
+        mae_count_sum = 0
+        for batch_insts, batch_densities, batch_counts in train_loader:
+            target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
+            densities = np.array(batch_densities[0], dtype=np.float)
+            if settings.TEMPORAL:
+                N, T, C, H, W = densities.shape 
+                densities = np.reshape(densities, (N*T, C, H, W))
+            target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
+            target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
+            preds_densities, preds_counts = mdan.inference(target_insts)
+            mse_density_sum += torch.sum((preds_densities - target_densities)**2).item()
+            mse_count_sum += torch.sum((preds_counts - target_counts)**2).item()
+            mae_count_sum += torch.sum(abs(preds_counts-target_counts)).item()
+            num_insts += len(target_densities)
+        mse_density = mse_density_sum / num_insts
+        mse_count = mse_count_sum / num_insts
+        mae_count = mae_count_sum / num_insts      
 
         return mse_density, mse_count, mae_count
 

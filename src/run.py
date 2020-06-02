@@ -51,18 +51,12 @@ logger.info('Started loading data')
 #data = load_data(10)
 #data = joblib.load('temporary.npy')
 
-if settings.LOAD_MULTIPLE_FILES:
-    data_insts, data_counts = load_insts('first', None, 50)
-else:
-    data_insts, data_densities, data_counts = load_insts('first', 'first', 50)
 
+data_insts, data_counts = load_insts(settings.PREFIX_DATA, 50)
 
 
 if settings.TEMPORAL:
-    if settings.LOAD_MULTIPLE_FILES:
-        data_insts, data_counts = utils.group_sequences_load_multiple_files(data_insts, data_counts, settings.SEQUENCE_SIZE)
-    else:
-        data_insts, data_densities, data_counts = utils.group_sequences(data_insts, data_densities, data_counts, settings.SEQUENCE_SIZE)
+    data_insts, data_counts = utils.group_sequences(data_insts, data_counts, settings.SEQUENCE_SIZE)
 
 ##############################
 ################################
@@ -112,18 +106,13 @@ for i in range(settings.NUM_DATASETS):
 
     optimizer = torch.optim.Adam(mdan.parameters(), lr=lr, weight_decay=0)
 
-    #if settings.USE_DATA_AUGMENTATION and settings.LOAD_MULTIPLE_FILES:
-    #    data
     size = len(data_insts[i])
     indices = np.random.permutation(size)
     test_idx = indices[int(settings.VALIDATION_TEST_RATIO*size):]
     test_insts, test_counts = data_insts[i][test_idx], data_counts[i][test_idx]
-    if not settings.LOAD_MULTIPLE_FILES:
-        test_densities = data_densities[test_idx]
     val_idx = indices[:int(settings.VALIDATION_TEST_RATIO*size)]
     val_insts, val_counts = data_insts[i][val_idx], data_counts[i][val_idx]
-    if not settings.LOAD_MULTIPLE_FILES:
-        val_densities = data_densities[i][val_idx]
+
     
             
 
@@ -137,10 +126,8 @@ for i in range(settings.NUM_DATASETS):
             running_count_loss = 0.0
             running_density_loss = 0.0
             no_batches = 0
-            if settings.LOAD_MULTIPLE_FILES:
-                train_loader = utils.multi_data_loader(data_insts, None, data_counts, batch_size, 'first', 'proportional')
-            else:
-                train_loader = utils.multi_data_loader(data_insts, data_densities, data_counts, batch_size, 'first', 'proportional')
+            train_loader = utils.multi_data_loader(data_insts, data_counts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES)
+            
             for batch_insts, batch_densities, batch_counts in train_loader:
                 #logger.info("Starting batch")
                 # Build source instances.
@@ -197,11 +184,9 @@ for i in range(settings.NUM_DATASETS):
                 loss_plt.plot('density loss ('+str(settings.DATASETS[i])+')', 'train', 'MSE', t, running_density_loss / no_batches)
                 loss_plt.plot('count loss ('+str(settings.DATASETS[i])+')', 'train', 'MSE', t, running_count_loss / no_batches)
 
-            if settings.LOAD_MULTIPLE_FILES:
-                densities = None
-            else:
-                densities = val_densities
-            mse_density, mse_count, mae_count = utils.eval_mdan(mdan, val_insts, densities, val_counts, batch_size, device)
+           
+           
+            mse_density, mse_count, mae_count = utils.eval_mdan(mdan, val_insts,  val_counts, batch_size, device, settings.PREFIX_DATA, settings.PREFIX_DENSITIES)
 
             logger.info("Validation, Count MSE: {}, Density MSE: {}, Count MAE: {}".
                       format(mse_count, mse_density, mae_count))
@@ -226,11 +211,7 @@ for i in range(settings.NUM_DATASETS):
     results['count (mse)'][domain_id] = mse_count
     results['count (mae)'][domain_id] = mae_count
 
-    if settings.LOAD_MULTIPLE_FILES:
-        densities = None
-    else:
-        densities = test_densities
-    final_mse_density, final_mse_count, final_mae_count = utils.eval_mdan(best_mdan, test_insts, densities,test_counts, batch_size, device)
+    final_mse_density, final_mse_count, final_mae_count = utils.eval_mdan(best_mdan, test_insts, test_counts, batch_size, device, settings.PREFIX_DATA, settings.PREFIX_DENSITIES)
 
     results['final density (mse)'][domain_id] = final_mse_density
     results['final count (mse)'][domain_id] = final_mse_count

@@ -390,51 +390,38 @@ def load_data_from_file(prefix_data, prefix_densities):
     
     return data
 
-def load_insts(prefix_data, prefix_frames, max_insts_per_domain=None):
-    if settings.LOAD_MULTIPLE_FILES:
-        data = load_data_structure(prefix_data)
-    else:
-        data =  load_data_from_file(prefix_data, prefix_frames)
+def load_insts(prefix_data, max_insts_per_domain=None):
+    data = load_data_structure(prefix_data)
+    
     print('Finished loading data')
 
     data_insts, data_counts = [], []
 
-    if not settings.LOAD_MULTIPLE_FILES:
-        data_densities = []
-
     for domain_id in settings.DATASETS:
         #print(domain_id)
         domain_insts, domain_counts = [], []
-        if not settings.LOAD_MULTIPLE_FILES:
-            domain_densities = []
     
         new_num_insts = 0
         camera_times_ids = list(data[domain_id].camera_times.keys())
         camera_times_ids.sort()
         for time_id in camera_times_ids:
             #print('\t', time_id)
-            if max_insts_per_domain is not None and new_num_insts >= max_insts_per_domain:
+            if max_insts_per_domain is not None and new_num_insts > max_insts_per_domain:
                 break
             new_data_insts, new_data_densities, new_data_counts = {}, {}, {}
             frame_ids = list(data[domain_id].camera_times[time_id].frames.keys())
             frame_ids.sort()
             for frame_id in frame_ids:
-                if max_insts_per_domain is not None and new_num_insts >= max_insts_per_domain:
+                if max_insts_per_domain is not None and new_num_insts > max_insts_per_domain:
                     break
                 if data[domain_id].camera_times[time_id].frames[frame_id].frame is not None:
                     frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
-                    if settings.LOAD_MULTIPLE_FILES:
-                        new_data_insts.setdefault('None', []).append([domain_id, time_id, frame_id, 'None'])
-                        if settings.USE_DATA_AUGMENTATION:
-                            for aug_key in frame_data.augmentation:
-                                new_data_insts.setdefault(aug_key, []).append([domain_id, time_id, frame_id, aug_key])
-                    else:
-                        new_data_insts.setdefault('None', []).append(frame_data.frame / 255)
-                        new_data_densities.setdefault('None', []).append(frame_data.density)
-                        if settings.USE_DATA_AUGMENTATION:
-                            for aug_key in frame_data.augmentation:
-                                new_data_insts.setdefault(aug_key, []).append(frame_data.augmentation[aug_key]/255)
-                                new_data_densities.setdefault(aug_key, []).append(frame_data.density_augmentation[aug_key])
+                    
+                    new_data_insts.setdefault('None', []).append([domain_id, time_id, frame_id, 'None'])
+                    if settings.USE_DATA_AUGMENTATION:
+                        for aug_key in frame_data.augmentation:
+                            new_data_insts.setdefault(aug_key, []).append([domain_id, time_id, frame_id, aug_key])
+                    
 
                     no_vehicles = len(frame_data.vehicles)
                     new_data_counts.setdefault('None', []).append(no_vehicles)
@@ -450,36 +437,23 @@ def load_insts(prefix_data, prefix_frames, max_insts_per_domain=None):
                 for key in new_data_insts:
                     domain_insts.append(new_data_insts[key])
                     domain_counts.append(new_data_counts[key])
-                    if not settings.LOAD_MULTIPLE_FILES:      
-                        domain_densities.append(new_data_densities[key])
                 
             else:
                 for key in new_data_insts:
                     domain_insts += new_data_insts[key]
                     domain_counts += new_data_counts[key]
-                    if not settings.LOAD_MULTIPLE_FILES: 
-                        domain_densities += new_data_densities[key]
 
         data_insts.append(domain_insts)
         data_counts.append(domain_counts)
-        if not settings.LOAD_MULTIPLE_FILES:
-            data_densities.append(domain_densities)  
-
-    if not settings.LOAD_MULTIPLE_FILES:
-        del data
-        print('Deleted data')
+ 
 
     for domain_id in range(len(data_insts)):
-        if not settings.LOAD_MULTIPLE_FILES:
-            data_densities[domain_id] = np.array(data_densities[domain_id])
+
         data_counts[domain_id] = np.array(data_counts[domain_id]) 
         data_insts[domain_id] = np.array(data_insts[domain_id]) 
     
-    if settings.LOAD_MULTIPLE_FILES:
-        return data_insts, data_counts
-    else:
-        return data_insts, data_densities, data_counts
-    
+    return data_insts, data_counts
+   
 
 def compute_densities(data):
     for domain_id in data:

@@ -48,3 +48,6 @@ class MDANTemporalCommon(MDANTemporal):
 
         return sdensity, scount, sdomains, tdomains
     
+    def to_string(self):
+        return "temporal_common"
+    

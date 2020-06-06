@@ -7,7 +7,7 @@ import load_data
 
 
 if __name__ == '__main__':
-    #data = load_data.load_data(1, settings.IMAGE_NEW_SHAPE)
+    #data = load_data.load_data(1, settings.WEBCAMT_NEW_SHAPE)
     data =  load_data.load_data_from_file('first', 'first')
     i = 0
     for domain in data:

@@ -3,7 +3,8 @@ import cv2
 import sys
 import numpy as np
 import settings
-import load_data
+import load_webcamt
+import load_ucspeds
 import torch
 #import skimage.transform as SkT
 
@@ -101,7 +102,7 @@ def density_map(shape, centers, sigmas, out_shape=None):
     #print(np.sum(D), len(centers))    
     return D
 
-def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densities):
+def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densities, data):
     """
     Both inputs, counts and densities are list of numpy arrays, containing instances and labels from multiple sources.
     """
@@ -114,40 +115,55 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
         indexes.append(np.arange(len(inputs[i])))
         np.random.shuffle(indexes[i])
 
-    num_blocks = int(np.floor(float(min_input_size) / batch_size))
+    num_blocks = int(np.ceil(float(min_input_size) / batch_size))
     for j in range(num_blocks):
         batch_inputs, batch_counts, batch_densities = [], [], []
         for i in range(num_domains):
                     batch_counts.append(counts[i][indexes[i][j*batch_size:(j+1)*batch_size]])
                     if settings.TEMPORAL:
                         sequence_size = len(inputs[i][0])
-                        batch_inputs.append(np.zeros((0,sequence_size,3)+settings.IMAGE_NEW_SHAPE))
-                        batch_densities.append(np.zeros((0,sequence_size,1)+settings.IMAGE_NEW_SHAPE))
+                        batch_inputs.append(np.zeros((0,sequence_size,3)+settings.get_new_shape()))
+                        batch_densities.append(np.zeros((0,sequence_size,1)+settings.get_new_shape()))
                     else:
-                        batch_inputs.append(np.zeros((0,3)+settings.IMAGE_NEW_SHAPE))
-                        batch_densities.append(np.zeros((0,1)+settings.IMAGE_NEW_SHAPE))
-                    for k in range(j*batch_size, min((j+1)*batch_size, len(indexes[i]))):
+                        batch_inputs.append(np.zeros((0,3)+settings.get_new_shape()))
+                        batch_densities.append(np.zeros((0,1)+settings.get_new_shape()))
+                    for k in range(j*batch_size, min((j+1)*batch_size, min_input_size)):
                         if settings.TEMPORAL:
                             batch_sequence_inputs = []
                             batch_sequence_densities = []
                             for frame in inputs[i][indexes[i][k]]:
                                 if frame[0] == '0':
-                                    diff = frame[1]
+                                    diff = int(frame[1])
                                     for l in range(diff):
-                                        batch_sequence_inputs.append(np.zeros((3,)+settings.IMAGE_NEW_SHAPE))
-                                        batch_sequence_densities.append(np.zeros((1,)+settings.IMAGE_NEW_SHAPE))
+                                        batch_sequence_inputs.append(np.zeros((3,)+settings.get_new_shape()))
+                                        batch_sequence_densities.append(np.zeros((1,)+settings.get_new_shape()))
                                 else:
-                                    new_frame = load_data.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])
-                                    new_density = load_data.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])
+                                    if settings.DATASET == 'webcamt':
+                                        new_frame  = load_webcamt.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])
+                                    elif settings.DATASET == 'ucspeds':
+                                        new_frame = load_ucspeds.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])
+                                    if settings.DATASET == 'webcamt':
+                                        new_density = load_webcamt.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])
+                                    elif settings.DATASET == 'ucspeds':
+                                        new_density = load_ucspeds.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])
                                     batch_sequence_inputs.append(new_frame)
                                     batch_sequence_densities.append(new_density)
                             batch_inputs[i] = np.concatenate((batch_inputs[i], np.array([batch_sequence_inputs])))
                             batch_densities[i] = np.concatenate((batch_densities[i], np.array([batch_sequence_densities])))
                         else:
                             frame = inputs[i][indexes[i][k]]
-                            new_frame = np.array([load_data.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])])
-                            new_density = np.array([load_data.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])])
+                            if settings.DATASET == 'webcamt':
+                                new_frame = np.array([load_webcamt.load_structure(True, frame[0], frame[1], frame[2], prefix_frames,  frame[3])])
+                            elif settings.DATASET == 'ucspeds':
+                                new_frame = np.array([load_ucspeds.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])])
+                            if settings.DATASET == 'webcamt':
+                                new_density = np.array([load_webcamt.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])])
+                            elif settings.DATASET == 'ucspeds':
+                                new_density = np.array([load_ucspeds.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])])
+                            #print(new_frame.shape)
+                            #print(batch_inputs[i].shape)
                             batch_inputs[i] = np.concatenate((batch_inputs[i], new_frame))
+                            #print(new_density.shape)
                             batch_densities[i] = np.concatenate((batch_densities[i], new_density))
 
         yield batch_inputs, batch_densities, batch_counts
@@ -179,7 +195,7 @@ def group_sequences(inputs, counts, sequence_size = None):
                     seq_counts[i].append(counts[i][j][k*sequence_size:min((k+1)*sequence_size, len(inputs[i][j]))])
                 if len(seq_inputs[i][-1]) < sequence_size:
                     diff = sequence_size - len(seq_inputs[i][-1])
-                    seq_inputs[i][-1].append(['0', diff])
+                    seq_inputs[i][-1] = np.concatenate((seq_inputs[i][-1], np.array([['0', diff, '0', '0']])))
                     seq_counts[i][-1] = np.concatenate((seq_counts[i][-1] , np.zeros((diff,))))
         
             seq_counts[i] = np.array(seq_counts[i])
@@ -187,13 +203,10 @@ def group_sequences(inputs, counts, sequence_size = None):
     
     return seq_inputs, seq_counts
 
-num_insts = None
-train_loader = None
-def eval_mdan(mdan, test_insts, test_counts, batch_size, device, prefix_frames, prefix_densities):
-    global num_insts, train_loader
+def eval_mdan(mdan, test_insts, test_counts, batch_size, device, prefix_frames, prefix_densities, data):
     with torch.no_grad():
         mdan.eval()
-        train_loader = multi_data_loader([test_insts], [test_counts], batch_size, prefix_frames, prefix_densities)
+        train_loader = multi_data_loader([test_insts], [test_counts], batch_size, prefix_frames, prefix_densities, data)
         num_insts = 0
         mse_density_sum = 0
         mse_count_sum = 0

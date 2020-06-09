@@ -20,7 +20,7 @@ class MDANTemporalSingle(MDANTemporal):
 
         h, density = super().forward_cnn(X, mask)
 
-        _, count_fcn, count_lstm = self.forward_lstm((N, T, C, H, W), density, mask, lengths)
+        _, count_fcn, count_lstm = self.forward_lstm((N, T, C, H, W), density, lengths)
        
         count = count_fcn + count_lstm  # predicted vehicle count
 
@@ -31,7 +31,7 @@ class MDANTemporalSingle(MDANTemporal):
         return density, h, count
 
 
-    def forward(self, sinputs, tinputs, mask=None, lengths=None):
+    def forward(self, sinputs, tinputs, mask=None, tmask = None, lengths=None):
        
         
         sdensity = []
@@ -39,12 +39,16 @@ class MDANTemporalSingle(MDANTemporal):
         sh = []
         for i in range(self.num_domains):
             X = sinputs[i]
-            density, h, count = self.forward_temporal(X, mask, lengths)
+            if mask is None:
+                cnn_mask = None
+            else:
+                cnn_mask = mask[i]
+            density, h, count = self.forward_temporal(X, cnn_mask, lengths)
             sdensity.append(density)
             scount.append(count)
             sh.append(h)
 
-        _, th, _ = self.forward_temporal(tinputs, mask, lengths)
+        _, th, _ = self.forward_temporal(tinputs, tmask, lengths)
 
         sdomains, tdomains = [], []
         for i in range(self.num_domains):

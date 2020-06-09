@@ -86,8 +86,9 @@ def compute_densities_roi(domain_path, data_domain):
                         data_domain[vid_number].frames[real_frame_number].density = utils.density_map((shape[1], shape[2]), centers, sigmas).reshape((1, shape[1], shape[2]))
                         data_domain[vid_number].frames[real_frame_number].count = len(data_matlab['fgt'][0][0][0][0][frame_number][0][0][0])
 
-            elif file[-12:] == '1_33_roi.mat':
+            elif file[-12:] == '1_33_roi.mat' or file[-24:] == '1_33_roi_mainwalkway.mat':
                 file_path = os.path.join(domain_path, file)
+                print(file_path)
                 mask = sio.loadmat(file_path)
                 data_domain[vid_number].mask = mask['roi'][0][0][2]
     
@@ -236,7 +237,7 @@ def load_structure(is_frame, domain_id, video_id, frame_id, prefix, data_augment
 
 def load_mask(data, domain_id, video_id):
 
-    return data[domain_id][video_id].mask
+    return data[domain_id][int(video_id)].mask
 
 def load_insts(prefix_data, max_insts_per_domain=None):
     data = load_data_structure(prefix_data)

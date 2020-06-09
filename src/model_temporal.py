@@ -33,7 +33,7 @@ class MDANTemporal(MDANet):
     def forward_temporal(self, X, mask=None, lengths=None):
         raise('Not implemented error')
 
-    def forward_lstm(self, shape, density, mask=None, lengths = None):
+    def forward_lstm(self, shape, density, lengths = None):
         N, T, C, H, W = shape
 
         density_clone = density.clone().reshape(N, T, -1)

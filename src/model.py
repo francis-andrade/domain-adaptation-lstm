@@ -121,7 +121,7 @@ class MDANet(nn.Module):
 
         return h, density
 
-    def forward(self, sinputs, tinputs, mask=None):
+    def forward(self, sinputs, tinputs, mask=None, tmask=None):
         """
         :param sinputs:     A list of k inputs from k source domains.
         :param tinputs:     Input from the target domain.
@@ -132,13 +132,17 @@ class MDANet(nn.Module):
         scount = []
         sh = []
         for i in range(self.num_domains):
-            h, density = self.forward_cnn(sinputs[i], mask)
+            if mask is None:
+                cnn_mask = None
+            else:
+                cnn_mask = mask[i]
+            h, density = self.forward_cnn(sinputs[i], cnn_mask)
             count = density.sum(dim=(1,2,3))
             sh.append(h)
             sdensity.append(density)
             scount.append(count)
 
-        th, _ = self.forward_cnn(tinputs)
+        th, _ = self.forward_cnn(tinputs, tmask)
 
         sdomains, tdomains = [], []
         for i in range(self.num_domains):

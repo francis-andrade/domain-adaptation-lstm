@@ -15,6 +15,7 @@ from scipy.ndimage import zoom
 import numpy as np
 import joblib
 import transformations
+from PIL import Image, ImageDraw
 
 class VehicleData:
 
@@ -115,11 +116,14 @@ class FrameData:
         
     def drawBoundingBox(self):
 
-        self.density = np.zeros((self.frame.shape[0], self.frame.shape[1]))
+        self.density = np.zeros((self.original_shape[0], self.original_shape[1]))
+        print(self.density.shape)
        
         for vehicle in self.vehicles:
             area = (vehicle.ymax - vehicle.ymin + 1)*(vehicle.xmax-vehicle.xmin+1)
-            self.density[vehicle.ymin:vehicle.ymax+1, vehicle.xmin:vehicle.xmax+1] += 1 / area
+            #self.density[vehicle.ymin:vehicle.ymax+1, vehicle.xmin:vehicle.xmax+1] += 1 / area
+            self.density[vehicle.ymin:(vehicle.ymax+1), vehicle.xmin:(vehicle.xmax+1)] = 1
+
     
 
 class CameraData:
@@ -239,12 +243,12 @@ def load_data(max_videos_per_domain = None, zoom_shape = settings.WEBCAMT_NEW_SH
                     camera.camera_times[time_identifier].computeBoundingBox(zoom_shape)
             
             if save_in_stages:
-                save_data_multiple_files_domain( data[domain_id], domain_id, 'first', 'first')
+                save_data_multiple_files_domain( data[domain_id], domain_id, settings.PREFIX_DATA, settings.PREFIX_DENSITIES)
                
     if save_in_stages:
         multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Multiple_Files')
         data_directory = os.path.join(multiple_files_directory, 'Data')
-        data_path = os.path.join(data_directory, 'first'+'_'+'.npy')
+        data_path = os.path.join(data_directory, settings.PREFIX_DATA+'_'+'.npy')
         joblib.dump(data, data_path)
 
     return data
@@ -343,6 +347,23 @@ def load_structure(is_frame, domain_id, time_id, frame_id, prefix, data_augment 
 
     structure = joblib.load(frame_path)
     return structure
+
+def build_mask(points):
+    img = Image.new('L', (settings.WEBCAMT_SHAPE[1], settings.WEBCAMT_SHAPE[0]), 0)
+    ImageDraw.Draw(img).polygon(points, outline=1, fill=1)
+    mask = np.array(img)
+
+    mask = zoom(mask, (settings.WEBCAMT_NEW_SHAPE[0] / settings.WEBCAMT_SHAPE[0], settings.WEBCAMT_NEW_SHAPE[1] / settings.WEBCAMT_SHAPE[1]))
+
+    return mask
+
+def load_mask(data, domain_id, time_id):
+    points = []
+    
+    for point in data[int(domain_id)].camera_times[time_id].points:
+        points.append((point[0], point[1]))
+    
+    return build_mask(points)
 
 def save_densities(data, prefix):
     densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Densities')
@@ -474,7 +495,12 @@ if __name__ == '__main__':
     compute_densities(data)
     save_densities(data, 'first')
     '''
+
+    '''
     data = load_data_from_file('first', 'first')
     compute_densities(data)
     save_densities(data, 'proportional')
     save_data_multiple_files(data, 'first', 'first', 'proportional')
+    '''
+
+    data = load_data(save_in_stages=True)

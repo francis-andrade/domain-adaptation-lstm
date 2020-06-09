@@ -86,7 +86,8 @@ def gauss2d(shape, center, sigmax, sigmay, out_shape=None, mask=None):
     sigmax, sigmay = sigmax / W, sigmay / H
     G = np.exp(-(1/2)*(((x - x0)/sigmax)**2 + ((y - y0)/sigmay)**2))  # Gaussian kernel centered in (x0, y0)
     #return G
-    G = G*mask
+    if mask is not None:
+        G = G*mask
     sum = np.sum(G)
     if sum == 0:
         return G
@@ -99,7 +100,7 @@ def density_map(shape, centers, sigmas, out_shape=None, mask=None):
     else:
         D = np.zeros(out_shape)
     for i, (x, y) in enumerate(centers):
-        D += gauss2d(shape, (x, y), sigmas[i][0], sigmas[i][1], out_shape)
+        D += gauss2d(shape, (x, y), sigmas[i][0], sigmas[i][1], out_shape, mask)
     #print(np.sum(D), len(centers))    
     return D
 
@@ -164,11 +165,12 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
                                     elif settings.DATASET == 'ucspeds':
                                         new_density = load_ucspeds.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])
                                     if settings.DATASET == 'webcamt':
-                                        new_mask = load_webcamt.load_mask(data, frame[0], frame[1])
+                                        new_mask = np.array([load_webcamt.load_mask(data, frame[0], frame[1])])
                                     elif settings.DATASET == 'ucspeds':
                                         new_mask = np.array([load_ucspeds.load_mask(data, frame[0], frame[1])])
                                     transform_id = indexes[i][k] / input_sizes[i] - 1
                                     if transform_id >= 0:
+                                        transform_id = int(transform_id)
                                         new_frame = transforms[transform_id][1](new_frame)
                                         if transforms[transform_id][0]:
                                             new_density = transforms[transform_id][1](new_density)
@@ -182,7 +184,6 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
                             batch_masks[i] = np.concatenate((batch_masks[i], np.array([batch_sequence_masks])))
                         else:
                             frame = inputs[i][indexes[i][k] % input_sizes[i]]
-                            print(indexes[i][k])
                             if settings.DATASET == 'webcamt':
                                 new_frame = load_webcamt.load_structure(True, frame[0], frame[1], frame[2], prefix_frames,  frame[3])
                             elif settings.DATASET == 'ucspeds':
@@ -197,7 +198,6 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
                                 new_mask = np.array([load_ucspeds.load_mask(data, frame[0], frame[1])])
 
                             transform_id = indexes[i][k] / input_sizes[i] - 1
-                            print(transform_id)
                             if transform_id >= 0:
                                 transform_id = int(transform_id)
                                 new_frame = transforms[transform_id][1](new_frame)

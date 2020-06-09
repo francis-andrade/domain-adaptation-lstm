@@ -29,7 +29,7 @@ parser.add_argument("--seed", help="Random seed.", type=int, default=42)
 
 parser.add_argument("--mu", help="Hyperparameter of the coefficient for the domain adversarial loss",
                     type=float, default=1e-2)
-parser.add_argument('--lambda', default=1e-3, type=float, metavar='', help='trade-off between density estimation and vehicle count losses (see eq. 7 in the paper)')
+parser.add_argument('--lambda', default=1e-2, type=float, metavar='', help='trade-off between density estimation and vehicle count losses (see eq. 7 in the paper)')
 parser.add_argument("--epochs", help="Number of training epochs", type=int, default=2)
 parser.add_argument("--batch_size", help="Batch size during training", type=int, default=10)
 parser.add_argument("--mode", help="Mode of combination rule for MDANet: [maxmin|dynamic|average]", type=str, default="maxmin")
@@ -40,6 +40,7 @@ parser.add_argument('--results_file', default='None', type=str, metavar='', help
 parser.add_argument('--cuda', default='0', type=str, metavar='', help = 'CUDA GPU')
 parser.add_argument('--lr', default=1e-3, type=float, metavar='', help='Learning Rate')
 parser.add_argument('--model', default='simple', type=str, metavar='', help='Model [simple|common|double|single]')
+parser.add_argument('--prefix_data', default='first', type=str, metavar='', help='Data Prefix')
 parser.add_argument('--prefix_densities', default='first', type=str, metavar='', help='Densities Prefix')
 parser.add_argument('--dataset', default='webcamt', type=str, metavar='', help='Dataset [webcamt|ucspeds]')
 parser.add_argument('--use_mask', default=True, type=int, metavar='', help='Use mask')
@@ -63,6 +64,7 @@ else:
     settings.TEMPORAL = True
 
 settings.PREFIX_DENSITIES = args.prefix_densities
+settings.PREFIX_DATA = args.prefix_data
 
 settings.USE_MASK = args.use_mask
 
@@ -165,19 +167,24 @@ for i in range(len(data_insts)):
                 for j in range(len(data_insts)):
                     if j != i:
                         source_insts.append(torch.from_numpy(np.array(batch_insts[j], dtype=np.float) / 255).float().to(device))  
-                        if settings.USE_MASK:
-                            source_masks.append(torch.from_numpy(np.array(batch_masks[j],  dtype=np.float)).float().to(device))
+                        
                         densities = np.array(batch_densities[j], dtype=np.float)
                         if settings.TEMPORAL:
                             N, T, C, H, W = densities.shape 
                             densities = np.reshape(densities, (N*T, C, H, W))
                         source_densities.append(torch.from_numpy(densities).float().to(device))
                         if settings.USE_MASK:
-                            source_counts.append(torch.sum(source_densities[-1], dim=(1,2,3)).reshape(N,T))
+                            masks = np.array(batch_masks[j],  dtype=np.float)
+                            if settings.TEMPORAL:
+                                N, T, C, H, W = masks.shape 
+                                masks = np.reshape(masks, (N*T, C, H, W))
+                            source_masks.append(torch.from_numpy().float().to(device))
+                        if settings.USE_MASK:
+                            source_counts.append(torch.sum(source_densities[-1]*source_masks[-1], dim=(1,2,3)).reshape(N,T))
                         else:
                             source_counts.append(torch.from_numpy(np.array(batch_counts[j],  dtype=np.float)).float().to(device))
                 
-                tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float) / 255).float().to(device)   
+                tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float) / 255.0).float().to(device)   
                 if settings.USE_MASK:
                     tmask = torch.from_numpy(np.array(batch_masks[i], dtype=np.float)).float().to(device)   
                 else:

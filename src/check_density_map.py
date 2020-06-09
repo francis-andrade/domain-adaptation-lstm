@@ -22,7 +22,7 @@ if __name__ == '__main__':
                 if frame_data.frame is not None:
                     dict_frame = {'None': frame_data.frame}
                     dict_density = {'None': frame_data.density}
-                    if settings.USE_DATA_AUGMENTATION:
+                    if settings.LOAD_DATA_AUGMENTATION:
                         dict_frame.update(frame_data.augmentation)
                         dict_density.update(frame_data.density_augmentation)
                     for aug_key in dict_frame:

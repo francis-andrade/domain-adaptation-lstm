@@ -86,10 +86,10 @@ class FrameData:
             elif child.tag == "frame":
                 self.id = int(child.text)
     
-    def computeBoundingBox(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
+    def computeBoundingBox(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask=None):
 
         if settings.USE_GAUSSIAN:
-            self.drawGaussian(zoom_shape = settings.WEBCAMT_NEW_SHAPE)
+            self.drawGaussian(zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask=mask)
         else:
             self.drawBoundingBox()
 
@@ -97,7 +97,7 @@ class FrameData:
              if not settings.USE_GAUSSIAN:
                 self.density = zoom(self.density, (zoom_shape[0]/self.density.shape[0], zoom_shape[1]/self.density.shape[1]))
              self.density = self.density.reshape(1, zoom_shape[0], zoom_shape[1])
-             if settings.USE_DATA_AUGMENTATION:
+             if settings.LOAD_DATA_AUGMENTATION:
                 density_r180 = transformations.transform_matrix_channels(self.density, utils.rotate, 180)
                 density_s0 = transformations.transform_matrix_channels(self.density, utils.symmetric, 0)
                 density_s90 = transformations.transform_matrix_channels(self.density, utils.symmetric, 90)
@@ -106,13 +106,14 @@ class FrameData:
                 self.density_augmentation = {'r180': density_r180, 's0': density_s0, 's90': density_s90, 'brightness': density_brightness, 'contrast': density_contrast}
              
     
-    def drawGaussian(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
+    def drawGaussian(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask = None):
         centers = []
         sigmas = []
         for vehicle in self.vehicles:
             centers.append(vehicle.calculateCenter())
             sigmas.append(vehicle.calculateSigma())
-        self.density = utils.density_map((self.original_shape[0], self.original_shape[1]), centers, sigmas, zoom_shape)
+
+        self.density = utils.density_map((self.original_shape[0], self.original_shape[1]), centers, sigmas, zoom_shape, mask)
         
     def drawBoundingBox(self):
 
@@ -139,11 +140,11 @@ class CameraTimeData:
         self.frames = {}
 
     
-    def find_region_of_interest(self, mask):
+    def find_region_of_interest(self, mask_file):
         self.points = []
         line_no = 0
         while True:
-            line = mask.readline()
+            line = mask_file.readline()
             if line == "" or line == "\n":
                 break
             line_no += 1
@@ -154,6 +155,10 @@ class CameraTimeData:
                 if points[1][-1] == "]":
                     points[1] = points[1][:-1]
                 self.points.append([int(points[0]), int(points[1])])
+        
+        #print(self.year,' ', self.month,' ', self.day,' ', self.hour,' ', self.minute)
+        #print(self.points)
+        self.mask = build_mask(self.points)
     
     def extractFramesFromVideo(self, filepath, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
         frame_images = utils.readFramesFromVideo(filepath)
@@ -173,7 +178,7 @@ class CameraTimeData:
                 if zoom_shape is not None:
                     self.frames[i+1].frame = zoom(self.frames[i+1].frame, (zoom_shape[0]/self.frames[i+1].frame.shape[0], zoom_shape[1]/self.frames[i+1].frame.shape[1], 1))
                     self.frames[i+1].frame = np.moveaxis(self.frames[i+1].frame, 2, 0)
-                    if settings.USE_DATA_AUGMENTATION:
+                    if settings.LOAD_DATA_AUGMENTATION:
                         frame_r180 = transformations.transform_matrix_channels(self.frames[i+1].frame, utils.rotate, 180)
                         frame_s0 = transformations.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 0)
                         frame_s90 = transformations.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 90)
@@ -185,7 +190,13 @@ class CameraTimeData:
     def computeBoundingBox(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
         for frame_id in self.frames:
             if self.frames[frame_id].frame is not None:
-                self.frames[frame_id].computeBoundingBox(zoom_shape)
+                '''
+                if settings.STORE_MASK:
+                    mask = self.mask
+                else:
+                    mask = None
+                '''
+                self.frames[frame_id].computeBoundingBox(zoom_shape, mask=None)
                 
            
 
@@ -230,8 +241,8 @@ def load_data(max_videos_per_domain = None, zoom_shape = settings.WEBCAMT_NEW_SH
                                 camera.camera_times[time_identifier].video = subsubdir_path
                                 video_queue.append([time_identifier, subsubdir_path])
                             elif(subsubdir[-4:] == '.msk' and os.path.isfile(subsubdir_path)):
-                                file = open(subsubdir_path)
-                                camera.camera_times[time_identifier].find_region_of_interest(file)
+                                file_mask = open(subsubdir_path)
+                                camera.camera_times[time_identifier].find_region_of_interest(file_mask)
             
             for i, video in enumerate(video_queue):
                 if max_videos_per_domain is not None:
@@ -309,7 +320,7 @@ def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefi
                 data_domain.camera_times[time_id].frames[frame_id].frame = 0
                 data_domain.camera_times[time_id].frames[frame_id].density = 0
 
-                if settings.USE_DATA_AUGMENTATION:
+                if settings.LOAD_DATA_AUGMENTATION:
                     frames_aug = data_domain.camera_times[time_id].frames[frame_id].augmentation
                     densities_aug = data_domain.camera_times[time_id].frames[frame_id].density_augmentation
                     for frame_aug_key in frames_aug:
@@ -349,8 +360,13 @@ def load_structure(is_frame, domain_id, time_id, frame_id, prefix, data_augment 
     return structure
 
 def build_mask(points):
+    tuple_points = []
+    
+    for point in points:
+        tuple_points.append((point[0], point[1]))
+    
     img = Image.new('L', (settings.WEBCAMT_SHAPE[1], settings.WEBCAMT_SHAPE[0]), 0)
-    ImageDraw.Draw(img).polygon(points, outline=1, fill=1)
+    ImageDraw.Draw(img).polygon(tuple_points, outline=1, fill=1)
     mask = np.array(img)
 
     mask = zoom(mask, (settings.WEBCAMT_NEW_SHAPE[0] / settings.WEBCAMT_SHAPE[0], settings.WEBCAMT_NEW_SHAPE[1] / settings.WEBCAMT_SHAPE[1]))
@@ -358,12 +374,11 @@ def build_mask(points):
     return mask
 
 def load_mask(data, domain_id, time_id):
-    points = []
-    
-    for point in data[int(domain_id)].camera_times[time_id].points:
-        points.append((point[0], point[1]))
-    
-    return build_mask(points)
+
+    if settings.STORE_MASK:
+        return data[int(domain_id)].camera_times[time_id].mask
+    else:
+        return build_mask(data[int(domain_id)].camera_times[time_id].points)
 
 def save_densities(data, prefix):
     densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Densities')
@@ -376,7 +391,7 @@ def save_densities(data, prefix):
                 if frame_data.frame is not None:
                     dens_dict[time_id][frame_id] = {}
                     dens_dict[time_id][frame_id]['None'] = frame_data.density 
-                    if settings.USE_DATA_AUGMENTATION:
+                    if settings.LOAD_DATA_AUGMENTATION:
                         densities_aug = data[domain_id].camera_times[time_id].frames[frame_id].density_augmentation
                         for aug_key in densities_aug:
                             dens_dict[time_id][frame_id][aug_key] = frame_data.density_augmentation[aug_key]
@@ -401,7 +416,7 @@ def load_data_from_file(prefix_data, prefix_densities):
                     for frame_id in dens_dict[time_id]:
                         frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
                         frame_data.density = dens_dict[time_id][frame_id]['None']
-                        if settings.USE_DATA_AUGMENTATION:
+                        if settings.LOAD_DATA_AUGMENTATION:
                             frame_data.density_augmentation = {}
                             for aug_key in dens_dict[time_id][frame_id]:
                                 if aug_key != 'None':
@@ -438,14 +453,14 @@ def load_insts(prefix_data, max_insts_per_domain=None):
                     frame_data = data[domain_id].camera_times[time_id].frames[frame_id]
                     
                     new_data_insts.setdefault('None', []).append([domain_id, time_id, frame_id, 'None'])
-                    if settings.USE_DATA_AUGMENTATION:
+                    if settings.LOAD_DATA_AUGMENTATION:
                         for aug_key in frame_data.augmentation:
                             new_data_insts.setdefault(aug_key, []).append([domain_id, time_id, frame_id, aug_key])
                     
 
                     no_vehicles = len(frame_data.vehicles)
                     new_data_counts.setdefault('None', []).append(no_vehicles)
-                    if settings.USE_DATA_AUGMENTATION:
+                    if settings.LOAD_DATA_AUGMENTATION:
                         for aug_key in frame_data.augmentation:
                             new_data_counts.setdefault(aug_key, []).append(no_vehicles)
                 

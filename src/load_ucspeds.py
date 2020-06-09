@@ -7,8 +7,8 @@ import scipy.io as sio
 import numpy as np
 
 
-FRAMES_SPACING = 5
-SIGMAX = 10
+FRAMES_SPACING = 2
+SIGMAX = 8
 SIGMAY = 15
 
 def parse_folder_name(folder_name):
@@ -63,7 +63,17 @@ class FrameDataUCS:
         self.count = None
 
 
-def compute_densities_roi(domain_path, data_domain):
+def compute_mask(domain_path, data_domain):
+    subfiles = [f for f in os.listdir(domain_path)]
+    #print(subfiles)
+    for file in subfiles:
+        if file[-12:] == '1_33_roi.mat' or file[-24:] == '1_33_roi_mainwalkway.mat':
+            file_path = os.path.join(domain_path, file)
+            #print(file_path)
+            mask = sio.loadmat(file_path)
+            data_domain[1].mask = mask['roi'][0][0][2]
+
+def compute_densities(domain_path, data_domain):
     subfiles = [f for f in os.listdir(domain_path)]
     #print(subfiles)
     for file in subfiles:
@@ -82,15 +92,12 @@ def compute_densities_roi(domain_path, data_domain):
                             centers.append([person[0], person[1]])
                             sigmas.append([SIGMAX, SIGMAY])
                             shape = data_domain[vid_number].frames[real_frame_number].frame.shape
-
-                        data_domain[vid_number].frames[real_frame_number].density = utils.density_map((shape[1], shape[2]), centers, sigmas).reshape((1, shape[1], shape[2]))
+                        if settings.STORE_MASK:
+                            mask = data_domain[vid_number].mask
+                        else:
+                            mask = None
+                        data_domain[vid_number].frames[real_frame_number].density = utils.density_map((shape[1], shape[2]), centers, sigmas, mask=None).reshape((1, shape[1], shape[2]))
                         data_domain[vid_number].frames[real_frame_number].count = len(data_matlab['fgt'][0][0][0][0][frame_number][0][0][0])
-
-            elif file[-12:] == '1_33_roi.mat' or file[-24:] == '1_33_roi_mainwalkway.mat':
-                file_path = os.path.join(domain_path, file)
-                print(file_path)
-                mask = sio.loadmat(file_path)
-                data_domain[vid_number].mask = mask['roi'][0][0][2]
     
     for vid_number in data_domain.keys():
         keys = list(data_domain[vid_number].frames.keys())
@@ -136,7 +143,7 @@ def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefi
                 data_domain[video_number].frames[frame_id].frame = 0
                 data_domain[video_number].frames[frame_id].density = 0
 
-                if settings.USE_DATA_AUGMENTATION:
+                if settings.LOAD_DATA_AUGMENTATION:
                     frames_aug = data_domain[video_number].frames[frame_id].augmentation
                     densities_aug = data_domain[video_number].frames[frame_id].density_augmentation
                     for frame_aug_key in frames_aug:
@@ -193,7 +200,8 @@ def load_data(save_changes=True):
                                 real_frame_number = int((clip_number*200+frame_number-1)/FRAMES_SPACING)
                                 video_data.frames[real_frame_number] = frame_data
                 
-            compute_densities_roi(subdir_path, data[domain_id])
+            compute_densities(subdir_path, data[domain_id])
+            compute_mask(subdir_path, data[domain_id])
 
         if save_changes:
             save_data_multiple_files_domain( data[domain_id], domain_id, 'first', 'first')           
@@ -264,14 +272,14 @@ def load_insts(prefix_data, max_insts_per_domain=None):
                     frame_data = data[domain_id][video_id].frames[frame_id]
                     
                     new_data_insts.setdefault('None', []).append([domain_id, video_id, frame_id, 'None'])
-                    if settings.USE_DATA_AUGMENTATION:
+                    if settings.LOAD_DATA_AUGMENTATION:
                         for aug_key in frame_data.augmentation:
                             new_data_insts.setdefault(aug_key, []).append([domain_id, video_id, frame_id, aug_key])
                     
 
                     no_people = frame_data.count
                     new_data_counts.setdefault('None', []).append(no_people)
-                    if settings.USE_DATA_AUGMENTATION:
+                    if settings.LOAD_DATA_AUGMENTATION:
                         for aug_key in frame_data.augmentation:
                             new_data_counts.setdefault(aug_key, []).append(no_people)
                 

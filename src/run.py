@@ -19,6 +19,7 @@ import gc
 import plotter
 import copy
 import os
+from model_original import FCN_rLSTM
 
 
 
@@ -39,7 +40,7 @@ parser.add_argument('--visdom_port', default=8444, type=int, metavar='', help='V
 parser.add_argument('--results_file', default='None', type=str, metavar='', help = 'Name for results file')
 parser.add_argument('--cuda', default='0', type=str, metavar='', help = 'CUDA GPU')
 parser.add_argument('--lr', default=1e-3, type=float, metavar='', help='Learning Rate')
-parser.add_argument('--model', default='simple', type=str, metavar='', help='Model [simple|common|double|single]')
+parser.add_argument('--model', default='simple', type=str, metavar='', help='Model [simple|common|double|single|original|original_temporal]')
 parser.add_argument('--prefix_data', default='first', type=str, metavar='', help='Data Prefix')
 parser.add_argument('--prefix_densities', default='first', type=str, metavar='', help='Densities Prefix')
 parser.add_argument('--dataset', default='webcamt', type=str, metavar='', help='Dataset [webcamt|ucspeds]')
@@ -59,10 +60,15 @@ logger.info('Started loading data')
 
 settings.DATASET = args.dataset
 
-if args.model == 'simple':
+if args.model == 'simple' or args.model == 'original':
     settings.TEMPORAL = False
 else:
     settings.TEMPORAL = True
+
+if args.model == 'original' or args.model == 'original_temporal':
+    ORIGINAL = True
+else:
+    ORIGINAL = False
 
 settings.PREFIX_DENSITIES = args.prefix_densities
 settings.PREFIX_DATA = args.prefix_data
@@ -75,9 +81,9 @@ else:
     transforms = []
 
 if args.dataset == 'webcamt':
-    data, data_insts, data_counts = load_webcamt.load_insts(settings.PREFIX_DATA, 20)
+    data, data_insts, data_counts = load_webcamt.load_insts(settings.PREFIX_DATA, 10)
 elif args.dataset == 'ucspeds':
-    data, data_insts, data_counts = load_ucspeds.load_insts(settings.PREFIX_DATA, 20)
+    data, data_insts, data_counts = load_ucspeds.load_insts(settings.PREFIX_DATA, 10)
 
 if settings.TEMPORAL:
     data_insts, data_counts = utils.group_sequences(data_insts, data_counts, settings.SEQUENCE_SIZE)
@@ -96,7 +102,10 @@ args_dict = vars(args)
 lambda_ = args_dict["lambda"]
 
 if args.results_file == "None":
-    results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_'+str(args.mu)
+    if ORIGINAL:
+        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+'noapply'+'_'+str(args.lr)+'_'+'noapply'
+    else:
+        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_'+str(args.mu)
 else:
     results_file = args.results_file
 
@@ -126,6 +135,7 @@ for i in range(len(data_insts)):
         domain_id = settings.WEBCAMT_DOMAINS[i]
     else:
         domain_id = settings.UCSPEDS_DOMAINS[i]
+
     results['best val density (mse)'][domain_id] = np.inf
     results['best val count (mse)'][domain_id] = np.inf
     results['best val count (mae)'][domain_id] = np.inf
@@ -143,6 +153,9 @@ for i in range(len(data_insts)):
     elif args.model == 'single':
         mdan = MDANTemporalSingle(num_domains, settings.get_new_shape()).to(device)
         best_mdan = MDANTemporalSingle(num_domains, settings.get_new_shape()).to(device)
+    elif ORIGINAL:
+        mdan = FCN_rLSTM(settings.TEMPORAL, settings.get_new_shape()).to(device)
+        best_mdan = FCN_rLSTM(settings.TEMPORAL, settings.get_new_shape()).to(device)
 
     optimizer = torch.optim.Adam(mdan.parameters(), lr=lr, weight_decay=0)
 
@@ -154,6 +167,11 @@ for i in range(len(data_insts)):
     val_insts, val_counts = data_insts[i][val_idx], data_counts[i][val_idx]           
 
     
+    if ORIGINAL:
+        domain_insts, domain_counts = utils.concatenate_data_insts(data_insts, data_counts, i)
+    else:
+        domain_insts, domain_counts = data_insts, data_counts
+
     # Training phase.
 
     logger.info("Start training Domain: {}...".format(str(domain_id)))
@@ -163,7 +181,7 @@ for i in range(len(data_insts)):
             running_count_loss = 0.0
             running_density_loss = 0.0
             no_batches = 0
-            train_loader = utils.multi_data_loader(data_insts, data_counts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms=transforms)
+            train_loader = utils.multi_data_loader(domain_insts, domain_counts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms=transforms)
             
             for batch_insts, batch_densities, batch_counts, batch_masks in train_loader:
                 #logger.info("Starting batch")
@@ -175,8 +193,8 @@ for i in range(len(data_insts)):
                     source_masks = []
                 else:
                     source_masks = None
-                for j in range(len(data_insts)):
-                    if j != i:
+                for j in range(len(domain_insts)):
+                    if j != i or ORIGINAL:
                         source_insts.append(torch.from_numpy(np.array(batch_insts[j], dtype=np.float) / 255).float().to(device))  
                         
                         densities = np.array(batch_densities[j], dtype=np.float)
@@ -191,46 +209,72 @@ for i in range(len(data_insts)):
                                 masks = np.reshape(masks, (N*T, C, H, W))
                             source_masks.append(torch.from_numpy(masks).float().to(device))
                         if settings.USE_MASK:
-                            source_counts.append(torch.sum(source_densities[-1]*source_masks[-1], dim=(1,2,3)).reshape(N,T))
+                            counts = torch.sum(source_densities[-1]*source_masks[-1], dim=(1,2,3))
+                            if settings.TEMPORAL:
+                                counts = counts.reshape(N, T)
+                            source_counts.append(counts)
                         else:
                             source_counts.append(torch.from_numpy(np.array(batch_counts[j],  dtype=np.float)).float().to(device))
+                
+                if ORIGINAL:
+                    source_insts = source_insts[0]
+                    source_counts = source_counts[0]
+                    source_densities = source_densities[0]
+                    if settings.USE_MASK:
+                        source_masks = source_masks[0]
+                else:
+                    tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float) / 255.0).float().to(device)   
+                    if settings.USE_MASK:
+                        masks = np.array(batch_masks[i], dtype=np.float)
+                        if settings.TEMPORAL:
+                            masks = np.reshape(masks, (N*T, C, H, W))
+                        tmask = torch.from_numpy(masks).float().to(device)   
+                    else:
+                        tmask = None
+                    slabels = []
+                    tlabels = []
+                    for k in range(num_domains):
+                        slabels.append(torch.ones(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
+                        tlabels.append(torch.zeros(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
+                
                 if t==0:
                     counts_register[i].append(source_counts)
                 
-                tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float) / 255.0).float().to(device)   
-                if settings.USE_MASK:
-                    tmask = torch.from_numpy(np.array(batch_masks[i], dtype=np.float)).float().to(device)   
-                else:
-                    tmask = None
                 optimizer.zero_grad()
 
-                slabels = []
-                tlabels = []
-                for k in range(num_domains):
-                    slabels.append(torch.ones(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
-                    tlabels.append(torch.zeros(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
-                model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs, source_masks, tmask)
-                # Compute prediction accuracy on multiple training sources.
-                density_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
-                count_losses = torch.stack([(torch.sum((model_counts[j] - source_counts[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
-                losses = density_losses + lambda_*count_losses
-                domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels[j]) +
-                                           F.nll_loss(tdomains[j], tlabels[j]) for j in range(num_domains)])
-                # Different final loss function depending on different training modes.
-                if mode == "maxmin":
-                    loss = torch.max(losses) + mu * torch.min(domain_losses)
-                elif mode == "dynamic":
-                    loss = torch.log(torch.sum(torch.exp(gamma * (losses + mu * domain_losses)))) / gamma
-                elif mode == 'average':
-                    loss = torch.mean(losses+mu*domain_losses)
+                if ORIGINAL:
+                    model_densities, model_counts = mdan(source_insts, source_masks)
+                    # Compute prediction accuracy on multiple training sources.
+                    density_loss = torch.sum((model_densities - source_densities)**2)/(len(model_densities))
+                    count_loss = torch.sum((model_counts - source_counts)**2)/(len(model_densities))
+                    loss = density_loss + lambda_*count_loss
+                    no_batches += 1
+                    running_loss += loss.item()
+                    running_count_loss += count_loss.item()
+                    running_density_loss += density_loss.item()
                 else:
-                    raise ValueError("No support for the training mode on madnNet: {}.".format(mode))
-                no_batches += 1
-                running_loss += loss.item()
-                running_count_loss += count_losses.mean().item()
-                running_density_loss += density_losses.mean().item()
-                loss.backward()
-                optimizer.step()
+                    model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs, source_masks, tmask)
+                    # Compute prediction accuracy on multiple training sources.
+                    density_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
+                    count_losses = torch.stack([(torch.sum((model_counts[j] - source_counts[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
+                    losses = density_losses + lambda_*count_losses
+                    domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels[j]) +
+                                           F.nll_loss(tdomains[j], tlabels[j]) for j in range(num_domains)])
+                    # Different final loss function depending on different training modes.
+                    if mode == "maxmin":
+                        loss = torch.max(losses) + mu * torch.min(domain_losses)
+                    elif mode == "dynamic":
+                        loss = torch.log(torch.sum(torch.exp(gamma * (losses + mu * domain_losses)))) / gamma
+                    elif mode == 'average':
+                        loss = torch.mean(losses+mu*domain_losses)
+                    else:
+                        raise ValueError("No support for the training mode on madnNet: {}.".format(mode))
+                    no_batches += 1
+                    running_loss += loss.item()
+                    running_count_loss += count_losses.mean().item()
+                    running_density_loss += density_losses.mean().item()
+                    loss.backward()
+                    optimizer.step()
             
             logger.info("Iteration {}, loss = {}, mean count loss = {}, mean density loss = {}".format(t, running_loss, running_count_loss / no_batches, running_density_loss / no_batches))
 

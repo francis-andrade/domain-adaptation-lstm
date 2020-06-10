@@ -55,6 +55,6 @@ class MDANTemporal(MDANet):
         return h, count_fcn, count_lstm
 
     
-    def inference(self, inputs):
-        densities, _, counts = self.forward_temporal(inputs)
+    def inference(self, inputs, mask=None):
+        densities, _, counts = self.forward_temporal(inputs, mask)
         return densities, counts

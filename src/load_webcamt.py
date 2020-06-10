@@ -53,8 +53,8 @@ class VehicleData:
     
     def calculateSigma(self):
         factor = 1/1.96 # so that exactly 5% of gaussian distribution is outside the car boundaries
-        return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
-        #return [15, 15]               
+        #return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
+        return [15, 15]               
 
 class FrameData:
     

@@ -254,13 +254,32 @@ def eval_mdan(mdan, test_insts, test_counts, batch_size, device, prefix_frames, 
         mae_count_sum = 0
         for batch_insts, batch_densities, batch_counts, batch_masks in train_loader:
             target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
-            densities = np.array(batch_densities[0], dtype=np.float)
+
+            densities = np.array(batch_densities[0], dtype=np.float)            
             if settings.TEMPORAL:
                 N, T, C, H, W = densities.shape 
                 densities = np.reshape(densities, (N*T, C, H, W))
             target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
-            target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
-            preds_densities, preds_counts = mdan.inference(target_insts)
+
+            if settings.USE_MASK:
+                masks = np.array(batch_masks[0],  dtype=np.float)
+                if settings.TEMPORAL:
+                    N, T, C, H, W = masks.shape 
+                    masks = np.reshape(masks, (N*T, C, H, W))
+                target_masks = torch.from_numpy(np.array(masks, dtype=np.float)).float().to(device)
+            else:
+                target_masks = None
+
+
+            if settings.USE_MASK:
+                target_counts = torch.sum(target_densities*target_masks, dim=(1,2,3))
+                if settings.TEMPORAL:
+                    target_counts = target_counts.reshape(N,T)
+            else:
+                target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
+
+            preds_densities, preds_counts = mdan.inference(target_insts, target_masks)
+            
             mse_density_sum += torch.sum((preds_densities - target_densities)**2).item()
             mse_count_sum += torch.sum((preds_counts - target_counts)**2).item()
             mae_count_sum += torch.sum(abs(preds_counts-target_counts)).item()
@@ -270,6 +289,16 @@ def eval_mdan(mdan, test_insts, test_counts, batch_size, device, prefix_frames, 
         mae_count = mae_count_sum / num_insts      
 
         return mse_density, mse_count, mae_count
+
+def concatenate_data_insts(data_insts, data_counts, i):
+    domain_insts, domain_counts = np.empty((0,)+data_insts[0][0].shape), np.empty((0,)+data_counts[0][0].shape)
+    
+    for j in range(len(data_insts)):
+        if j != i:
+            domain_insts = np.concatenate((domain_insts, data_insts[j]))
+            domain_counts = np.concatenate((domain_counts, data_counts[j]))
+
+    return [domain_insts], [domain_counts]
 
 '''
 def show_images(plt, var_name, X, density, count, shape=None):

@@ -15,8 +15,6 @@ class MDANTemporalSingle(MDANTemporal):
     def forward_temporal(self, X, mask=None, lengths=None):
         N, T, C, H, W = X.shape
         X = X.reshape(T*N, C, H, W)
-        if mask is not None:
-            mask = mask.reshape(T*N, 1, H, W)
 
         h, density = super().forward_cnn(X, mask)
 

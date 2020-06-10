@@ -92,10 +92,12 @@ def compute_densities(domain_path, data_domain):
                             centers.append([person[0], person[1]])
                             sigmas.append([SIGMAX, SIGMAY])
                             shape = data_domain[vid_number].frames[real_frame_number].frame.shape
+                        '''
                         if settings.STORE_MASK:
                             mask = data_domain[vid_number].mask
                         else:
                             mask = None
+                        '''
                         data_domain[vid_number].frames[real_frame_number].density = utils.density_map((shape[1], shape[2]), centers, sigmas, mask=None).reshape((1, shape[1], shape[2]))
                         data_domain[vid_number].frames[real_frame_number].count = len(data_matlab['fgt'][0][0][0][0][frame_number][0][0][0])
     

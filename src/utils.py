@@ -59,7 +59,6 @@ def readFramesFromVideo(filepath):
     success,image = vidcap.read()
 
     while success:    
-        #print(image.shape)
         '''
         if image.shape[0] != 240 or image.shape[1] != 352:
             print("Here: "+filepath)
@@ -100,8 +99,7 @@ def density_map(shape, centers, sigmas, out_shape=None, mask=None):
     else:
         D = np.zeros(out_shape)
     for i, (x, y) in enumerate(centers):
-        D += gauss2d(shape, (x, y), sigmas[i][0], sigmas[i][1], out_shape, mask)
-    #print(np.sum(D), len(centers))    
+        D += gauss2d(shape, (x, y), sigmas[i][0], sigmas[i][1], out_shape, mask)    
     return D
 
 def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densities, data, transforms = [], shuffle=True):
@@ -115,7 +113,6 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
     indexes = []
     
     multiplier_transform = len(transforms)+1
-    print(multiplier_transform)
     for i in range(num_domains):
         indexes.append(np.arange(input_sizes[i]*multiplier_transform))
         if shuffle:
@@ -171,10 +168,9 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
                                     transform_id = indexes[i][k] / input_sizes[i] - 1
                                     if transform_id >= 0:
                                         transform_id = int(transform_id)
-                                        new_frame = transforms[transform_id][1](new_frame)
-                                        if transforms[transform_id][0]:
-                                            new_density = transforms[transform_id][1](new_density)
-                                            new_mask = transforms[transform_id][1](new_mask)
+                                        new_frame = transforms[transform_id][0](new_frame)
+                                        new_density = transforms[transform_id][1](new_density)
+                                        new_mask = transforms[transform_id][1](new_mask)
 
                                     batch_sequence_inputs.append(new_frame)
                                     batch_sequence_densities.append(new_density)
@@ -200,10 +196,9 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
                             transform_id = indexes[i][k] / input_sizes[i] - 1
                             if transform_id >= 0:
                                 transform_id = int(transform_id)
-                                new_frame = transforms[transform_id][1](new_frame)
-                                if transforms[transform_id][0]:
-                                    new_density = transforms[transform_id][1](new_density)
-                                    new_mask = transforms[transform_id][1](new_mask)
+                                new_frame = transforms[transform_id][0](new_frame)
+                                new_density = transforms[transform_id][1](new_density)
+                                new_mask = transforms[transform_id][1](new_mask)
 
                             new_frame = np.array([new_frame])
                             new_density = np.array([new_density])

@@ -1,5 +1,6 @@
 import os
 import platform
+import transformations
 
 def get_dataset_directory():
     """
@@ -28,11 +29,11 @@ SEQUENCE_SIZE = 4
 LOAD_MULTIPLE_FILES = True
 LOAD_DATA_AUGMENTATION = False
 VALIDATION_TEST_RATIO = 0.3
-PREFIX_DATA = 'first'
-PREFIX_DENSITIES = 'first'
+PREFIX_DATA = 'first_mask'
+PREFIX_DENSITIES = 'proportional_mask'
 
 UCSPEDS_DOMAINS = ['vidd', 'vidf']
-DATASET = 'ucspeds'
+DATASET = 'webcamt'
 UCSPEDS_NEW_SHAPE = (158, 238)
 USE_MASK = True
 STORE_MASK = True
@@ -42,3 +43,7 @@ def get_new_shape():
         return WEBCAMT_NEW_SHAPE
     elif DATASET == 'ucspeds':
         return UCSPEDS_NEW_SHAPE
+
+TRANSFORMS = []
+hor_sym = lambda matrix : transformations.transform_matrix_channels(matrix, transformations.symmetric, 90)
+TRANSFORMS.append([hor_sym, hor_sym])

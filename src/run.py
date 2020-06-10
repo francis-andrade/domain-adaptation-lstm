@@ -44,6 +44,7 @@ parser.add_argument('--prefix_data', default='first', type=str, metavar='', help
 parser.add_argument('--prefix_densities', default='first', type=str, metavar='', help='Densities Prefix')
 parser.add_argument('--dataset', default='webcamt', type=str, metavar='', help='Dataset [webcamt|ucspeds]')
 parser.add_argument('--use_mask', default=True, type=int, metavar='', help='Use mask')
+parser.add_argument('--use_transformations', default=True, type=int, metavar='', help='Use Data Augmentation')
 # Compile and configure all the model parameters.
 args = parser.parse_args()
 device = torch.device("cuda:"+args.cuda if torch.cuda.is_available() else "cpu")
@@ -68,13 +69,19 @@ settings.PREFIX_DATA = args.prefix_data
 
 settings.USE_MASK = args.use_mask
 
-if args.dataset == 'webcamt':
-    data, data_insts, data_counts = load_webcamt.load_insts(settings.PREFIX_DATA, 100)
+if args.use_transformations:
+    transforms = settings.TRANSFORMS
 else:
-    data, data_insts, data_counts = load_ucspeds.load_insts(settings.PREFIX_DATA, 100)
+    transforms = []
+
+if args.dataset == 'webcamt':
+    data, data_insts, data_counts = load_webcamt.load_insts(settings.PREFIX_DATA, 20)
+elif args.dataset == 'ucspeds':
+    data, data_insts, data_counts = load_ucspeds.load_insts(settings.PREFIX_DATA, 20)
 
 if settings.TEMPORAL:
     data_insts, data_counts = utils.group_sequences(data_insts, data_counts, settings.SEQUENCE_SIZE)
+
 
 ##############################
 ################################
@@ -109,6 +116,10 @@ results['best val count (mae)'] = {}
 results['test count (mse)'] = {}
 results['test density (mse)'] = {}
 results['test count (mae)'] = {}
+
+counts_register = []
+for i in range(len(data_insts)):
+    counts_register.append([])
 
 for i in range(len(data_insts)):
     if args.dataset == 'webcamt':
@@ -152,7 +163,7 @@ for i in range(len(data_insts)):
             running_count_loss = 0.0
             running_density_loss = 0.0
             no_batches = 0
-            train_loader = utils.multi_data_loader(data_insts, data_counts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data)
+            train_loader = utils.multi_data_loader(data_insts, data_counts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms=transforms)
             
             for batch_insts, batch_densities, batch_counts, batch_masks in train_loader:
                 #logger.info("Starting batch")
@@ -178,11 +189,13 @@ for i in range(len(data_insts)):
                             if settings.TEMPORAL:
                                 N, T, C, H, W = masks.shape 
                                 masks = np.reshape(masks, (N*T, C, H, W))
-                            source_masks.append(torch.from_numpy().float().to(device))
+                            source_masks.append(torch.from_numpy(masks).float().to(device))
                         if settings.USE_MASK:
                             source_counts.append(torch.sum(source_densities[-1]*source_masks[-1], dim=(1,2,3)).reshape(N,T))
                         else:
                             source_counts.append(torch.from_numpy(np.array(batch_counts[j],  dtype=np.float)).float().to(device))
+                if t==0:
+                    counts_register[i].append(source_counts)
                 
                 tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float) / 255.0).float().to(device)   
                 if settings.USE_MASK:
@@ -196,11 +209,10 @@ for i in range(len(data_insts)):
                 for k in range(num_domains):
                     slabels.append(torch.ones(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
                     tlabels.append(torch.zeros(len(source_insts[k]), requires_grad=False).type(torch.LongTensor).to(device))
-                #print("Starting MDAN")
                 model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs, source_masks, tmask)
                 # Compute prediction accuracy on multiple training sources.
                 density_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
-                count_losses = torch.stack([(torch.sum((model_counts[j] - source_counts[j])**2)/(len(model_counts[j]))) for j in range(num_domains)])
+                count_losses = torch.stack([(torch.sum((model_counts[j] - source_counts[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
                 losses = density_losses + lambda_*count_losses
                 domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels[j]) +
                                            F.nll_loss(tdomains[j], tlabels[j]) for j in range(num_domains)])

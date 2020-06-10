@@ -55,7 +55,7 @@ class MDANTemporalDouble(MDANTemporal):
             scount.append(count)
             sh.append(h)
 
-        _, th, _ = self.forward_temporal(tinputs, mask, tmask, lengths)  
+        _, th, _ = self.forward_temporal(tinputs, tmask, lengths)  
 
         sdomains, tdomains = [], []
         for i in range(self.num_domains):

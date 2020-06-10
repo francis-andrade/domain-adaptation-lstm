@@ -196,23 +196,16 @@ for i in range(len(data_insts)):
                 for j in range(len(domain_insts)):
                     if j != i or ORIGINAL:
                         source_insts.append(torch.from_numpy(np.array(batch_insts[j], dtype=np.float) / 255).float().to(device))  
+                        source_densities.append(torch.from_numpy(np.array(batch_densities[j], dtype=np.float)).float().to(device))
+                        if settings.USE_MASK:
+                            source_masks.append(torch.from_numpy(np.array(batch_masks[j],  dtype=np.float)).float().to(device))
                         
-                        densities = np.array(batch_densities[j], dtype=np.float)
-                        if settings.TEMPORAL:
-                            N, T, C, H, W = densities.shape 
-                            densities = np.reshape(densities, (N*T, C, H, W))
-                        source_densities.append(torch.from_numpy(densities).float().to(device))
                         if settings.USE_MASK:
-                            masks = np.array(batch_masks[j],  dtype=np.float)
                             if settings.TEMPORAL:
-                                N, T, C, H, W = masks.shape 
-                                masks = np.reshape(masks, (N*T, C, H, W))
-                            source_masks.append(torch.from_numpy(masks).float().to(device))
-                        if settings.USE_MASK:
-                            counts = torch.sum(source_densities[-1]*source_masks[-1], dim=(1,2,3))
-                            if settings.TEMPORAL:
-                                counts = counts.reshape(N, T)
-                            source_counts.append(counts)
+                                dim = (2,3,4)
+                            else:
+                                dim = (1,2,3)
+                            source_counts.append(torch.sum(source_densities[-1]*source_masks[-1], dim=dim))
                         else:
                             source_counts.append(torch.from_numpy(np.array(batch_counts[j],  dtype=np.float)).float().to(device))
                 
@@ -225,10 +218,7 @@ for i in range(len(data_insts)):
                 else:
                     tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float) / 255.0).float().to(device)   
                     if settings.USE_MASK:
-                        masks = np.array(batch_masks[i], dtype=np.float)
-                        if settings.TEMPORAL:
-                            masks = np.reshape(masks, (N*T, C, H, W))
-                        tmask = torch.from_numpy(masks).float().to(device)   
+                        tmask = torch.from_numpy(np.array(batch_masks[i], dtype=np.float)).float().to(device)   
                     else:
                         tmask = None
                     slabels = []
@@ -242,21 +232,39 @@ for i in range(len(data_insts)):
                 
                 optimizer.zero_grad()
 
+                
                 if ORIGINAL:
                     model_densities, model_counts = mdan(source_insts, source_masks)
+                else:
+                    model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs, source_masks, tmask)
+                
+                if settings.TEMPORAL: 
+                    if ORIGINAL:
+                        N, T, C, H, W = model_densities.shape
+                    else:
+                        N, T, C, H, W = model_densities[0].shape
+                    size = N*T
+                else:
+                    if ORIGINAL:
+                        N, C, H, W = model_densities.shape
+                    else:
+                        N, C, H, W = model_densities[0].shape
+                    size = N
+
+                if ORIGINAL:
                     # Compute prediction accuracy on multiple training sources.
-                    density_loss = torch.sum((model_densities - source_densities)**2)/(len(model_densities))
-                    count_loss = torch.sum((model_counts - source_counts)**2)/(len(model_densities))
+                    density_loss = torch.sum((model_densities - source_densities)**2)/size
+                    count_loss = torch.sum((model_counts - source_counts)**2)/size
                     loss = density_loss + lambda_*count_loss
                     no_batches += 1
                     running_loss += loss.item()
                     running_count_loss += count_loss.item()
                     running_density_loss += density_loss.item()
                 else:
-                    model_densities, model_counts, sdomains, tdomains = mdan(source_insts, tinputs, source_masks, tmask)
+                    
                     # Compute prediction accuracy on multiple training sources.
-                    density_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
-                    count_losses = torch.stack([(torch.sum((model_counts[j] - source_counts[j])**2)/(len(model_densities[j]))) for j in range(num_domains)])
+                    density_losses = torch.stack([(torch.sum((model_densities[j] - source_densities[j])**2)/size) for j in range(num_domains)])
+                    count_losses = torch.stack([(torch.sum((model_counts[j] - source_counts[j])**2)/size) for j in range(num_domains)])
                     losses = density_losses + lambda_*count_losses
                     domain_losses = torch.stack([F.nll_loss(sdomains[j], slabels[j]) +
                                            F.nll_loss(tdomains[j], tlabels[j]) for j in range(num_domains)])

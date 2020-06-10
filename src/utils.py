@@ -207,6 +207,9 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
                             batch_densities[i] = np.concatenate((batch_densities[i], new_density))
                             batch_masks[i] = np.concatenate((batch_masks[i], new_mask))
 
+        if settings.USE_MASK:
+            batch_counts = None
+            
         yield batch_inputs, batch_densities, batch_counts, batch_masks
 
 
@@ -254,27 +257,18 @@ def eval_mdan(mdan, test_insts, test_counts, batch_size, device, prefix_frames, 
         mae_count_sum = 0
         for batch_insts, batch_densities, batch_counts, batch_masks in train_loader:
             target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
-
-            densities = np.array(batch_densities[0], dtype=np.float)            
-            if settings.TEMPORAL:
-                N, T, C, H, W = densities.shape 
-                densities = np.reshape(densities, (N*T, C, H, W))
-            target_densities = torch.from_numpy(np.array(densities, dtype=np.float)).float().to(device)
-
+            target_densities = torch.from_numpy(np.array(batch_densities[0], dtype=np.float)).float().to(device)
             if settings.USE_MASK:
-                masks = np.array(batch_masks[0],  dtype=np.float)
-                if settings.TEMPORAL:
-                    N, T, C, H, W = masks.shape 
-                    masks = np.reshape(masks, (N*T, C, H, W))
-                target_masks = torch.from_numpy(np.array(masks, dtype=np.float)).float().to(device)
+                target_masks = torch.from_numpy(np.array(batch_masks[0],  dtype=np.float)).float().to(device)
             else:
                 target_masks = None
 
-
             if settings.USE_MASK:
-                target_counts = torch.sum(target_densities*target_masks, dim=(1,2,3))
                 if settings.TEMPORAL:
-                    target_counts = target_counts.reshape(N,T)
+                    dim = (2,3,4)
+                else:
+                    dim = (1,2,3)
+                target_counts = torch.sum(target_densities*target_masks, dim=dim)
             else:
                 target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
 
@@ -283,7 +277,14 @@ def eval_mdan(mdan, test_insts, test_counts, batch_size, device, prefix_frames, 
             mse_density_sum += torch.sum((preds_densities - target_densities)**2).item()
             mse_count_sum += torch.sum((preds_counts - target_counts)**2).item()
             mae_count_sum += torch.sum(abs(preds_counts-target_counts)).item()
-            num_insts += len(target_densities)
+            if settings.TEMPORAL: 
+                N, T, C, H, W = preds_densities.shape
+                size = N*T
+            else:
+                N, C, H, W = preds_densities.shape
+                size = N
+            num_insts += size
+        print("NUM INSTS: ", num_insts)
         mse_density = mse_density_sum / num_insts
         mse_count = mse_count_sum / num_insts
         mae_count = mae_count_sum / num_insts      

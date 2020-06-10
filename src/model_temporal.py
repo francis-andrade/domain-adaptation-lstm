@@ -36,15 +36,15 @@ class MDANTemporal(MDANet):
     def forward_lstm(self, shape, density, lengths = None):
         N, T, C, H, W = shape
 
-        density_clone = density.clone().reshape(N, T, -1)
-        count_fcn = density_clone.sum(dim=2)
+        density_reshaped = density.reshape(N, T, -1)
+        count_fcn = density_reshaped.sum(dim=2)
 
         if lengths is not None:
             # pack padded sequence so that padded items in the sequence are not shown to the LSTM
-            density_clone = rnn.pack_padded_sequence(density_clone, lengths, batch_first=True, enforce_sorted=True)
+            density_reshaped = rnn.pack_padded_sequence(density_reshaped, lengths, batch_first=True, enforce_sorted=True)
 
         h0 = self.init_hidden(N)
-        h, _ = self.lstm_block(density_clone, h0)
+        h, _ = self.lstm_block(density_reshaped, h0)
 
         if lengths is not None:
             # undo the packing operation

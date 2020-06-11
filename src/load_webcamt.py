@@ -484,7 +484,7 @@ def load_insts(prefix_data, max_insts_per_domain=None):
 
     for domain_id in range(len(data_insts)):
 
-        data_counts[domain_id] = np.array(data_counts[domain_id]) 
+        data_counts[domain_id] = np.array(data_counts[domain_id], dtype=np.float) 
         data_insts[domain_id] = np.array(data_insts[domain_id]) 
     
     return data, data_insts, data_counts

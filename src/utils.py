@@ -130,15 +130,9 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
         batch_inputs, batch_counts, batch_densities, batch_masks = [], [], [], []
         for i in range(num_domains):
                     batch_counts.append(new_counts[i][indexes[i][j*batch_size:(j+1)*batch_size]])
-                    if settings.TEMPORAL:
-                        sequence_size = settings.SEQUENCE_SIZE
-                        batch_inputs.append(np.zeros((0,sequence_size,3)+settings.get_new_shape()))
-                        batch_densities.append(np.zeros((0,sequence_size,1)+settings.get_new_shape()))
-                        batch_masks.append(np.zeros((0,sequence_size,1)+settings.get_new_shape()))
-                    else:
-                        batch_inputs.append(np.zeros((0,3)+settings.get_new_shape()))
-                        batch_densities.append(np.zeros((0,1)+settings.get_new_shape()))
-                        batch_masks.append(np.zeros((0,1)+settings.get_new_shape()))
+                    batch_inputs.append([])
+                    batch_densities.append([])
+                    batch_masks.append([])
 
                     for k in range(j*batch_size, min((j+1)*batch_size, min_input_size*multiplier_transform)):
                         if settings.TEMPORAL:
@@ -175,9 +169,9 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
                                     batch_sequence_inputs.append(new_frame)
                                     batch_sequence_densities.append(new_density)
                                     batch_sequence_masks.append(new_mask)
-                            batch_inputs[i] = np.concatenate((batch_inputs[i], np.array([batch_sequence_inputs])))
-                            batch_densities[i] = np.concatenate((batch_densities[i], np.array([batch_sequence_densities])))
-                            batch_masks[i] = np.concatenate((batch_masks[i], np.array([batch_sequence_masks])))
+                            batch_inputs[i].append(batch_sequence_inputs)
+                            batch_densities[i].append(batch_sequence_densities)
+                            batch_masks[i].append(batch_sequence_masks)
                         else:
                             frame = inputs[i][indexes[i][k] % input_sizes[i]]
                             if settings.DATASET == 'webcamt':
@@ -200,12 +194,13 @@ def multi_data_loader(inputs, counts, batch_size, prefix_frames, prefix_densitie
                                 new_density = transforms[transform_id][1](new_density)
                                 new_mask = transforms[transform_id][1](new_mask)
 
-                            new_frame = np.array([new_frame])
-                            new_density = np.array([new_density])
-                            new_mask = np.array([new_mask])
-                            batch_inputs[i] = np.concatenate((batch_inputs[i], new_frame))
-                            batch_densities[i] = np.concatenate((batch_densities[i], new_density))
-                            batch_masks[i] = np.concatenate((batch_masks[i], new_mask))
+                            batch_inputs[i].append(new_frame)
+                            batch_densities[i].append(new_density)
+                            batch_masks[i].append(new_mask)
+                        
+                    batch_inputs[i] = np.array(batch_inputs[i], dtype=np.float)
+                    batch_densities[i] = np.array(batch_densities[i], dtype=np.float)
+                    batch_masks[i] = np.array(batch_masks[i], dtype=np.float)
 
         if settings.USE_MASK:
             batch_counts = None
@@ -256,10 +251,10 @@ def eval_mdan(mdan, test_insts, test_counts, batch_size, device, prefix_frames, 
         mse_count_sum = 0
         mae_count_sum = 0
         for batch_insts, batch_densities, batch_counts, batch_masks in train_loader:
-            target_insts = torch.from_numpy(np.array(batch_insts[0], dtype=np.float)).float().to(device)
-            target_densities = torch.from_numpy(np.array(batch_densities[0], dtype=np.float)).float().to(device)
+            target_insts = torch.from_numpy(batch_insts[0] / 255.0).float().to(device)
+            target_densities = torch.from_numpy(batch_densities[0]).float().to(device)
             if settings.USE_MASK:
-                target_masks = torch.from_numpy(np.array(batch_masks[0],  dtype=np.float)).float().to(device)
+                target_masks = torch.from_numpy(batch_masks[0]).float().to(device)
             else:
                 target_masks = None
 
@@ -270,7 +265,7 @@ def eval_mdan(mdan, test_insts, test_counts, batch_size, device, prefix_frames, 
                     dim = (1,2,3)
                 target_counts = torch.sum(target_densities*target_masks, dim=dim)
             else:
-                target_counts = torch.from_numpy(np.array(batch_counts[0], dtype=np.float)).float().to(device)
+                target_counts = torch.from_numpy(batch_counts[0]).float().to(device)
 
             preds_densities, preds_counts = mdan.inference(target_insts, target_masks)
             

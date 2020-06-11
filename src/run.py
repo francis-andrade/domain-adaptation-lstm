@@ -195,7 +195,7 @@ for i in range(len(data_insts)):
                     source_masks = None
                 for j in range(len(domain_insts)):
                     if j != i or ORIGINAL:
-                        source_insts.append(torch.from_numpy(np.array(batch_insts[j], dtype=np.float) / 255).float().to(device))  
+                        source_insts.append(torch.from_numpy(np.array(batch_insts[j], dtype=np.float) / 255.0).float().to(device))  
                         source_densities.append(torch.from_numpy(np.array(batch_densities[j], dtype=np.float)).float().to(device))
                         if settings.USE_MASK:
                             source_masks.append(torch.from_numpy(np.array(batch_masks[j],  dtype=np.float)).float().to(device))
@@ -281,8 +281,9 @@ for i in range(len(data_insts)):
                     running_loss += loss.item()
                     running_count_loss += count_losses.mean().item()
                     running_density_loss += density_losses.mean().item()
-                    loss.backward()
-                    optimizer.step()
+                
+                loss.backward()
+                optimizer.step()
             
             logger.info("Iteration {}, loss = {}, mean count loss = {}, mean density loss = {}".format(t, running_loss, running_count_loss / no_batches, running_density_loss / no_batches))
 

@@ -195,10 +195,10 @@ for i in range(len(data_insts)):
                     source_masks = None
                 for j in range(len(domain_insts)):
                     if j != i or ORIGINAL:
-                        source_insts.append(torch.from_numpy(np.array(batch_insts[j], dtype=np.float) / 255.0).float().to(device))  
-                        source_densities.append(torch.from_numpy(np.array(batch_densities[j], dtype=np.float)).float().to(device))
+                        source_insts.append(torch.from_numpy(batch_insts[j] / 255.0).float().to(device))  
+                        source_densities.append(torch.from_numpy(batch_densities[j]).float().to(device))
                         if settings.USE_MASK:
-                            source_masks.append(torch.from_numpy(np.array(batch_masks[j],  dtype=np.float)).float().to(device))
+                            source_masks.append(torch.from_numpy(batch_masks[j]).float().to(device))
                         
                         if settings.USE_MASK:
                             if settings.TEMPORAL:
@@ -207,7 +207,7 @@ for i in range(len(data_insts)):
                                 dim = (1,2,3)
                             source_counts.append(torch.sum(source_densities[-1]*source_masks[-1], dim=dim))
                         else:
-                            source_counts.append(torch.from_numpy(np.array(batch_counts[j],  dtype=np.float)).float().to(device))
+                            source_counts.append(torch.from_numpy(batch_counts[j]).float().to(device))
                 
                 if ORIGINAL:
                     source_insts = source_insts[0]
@@ -216,9 +216,9 @@ for i in range(len(data_insts)):
                     if settings.USE_MASK:
                         source_masks = source_masks[0]
                 else:
-                    tinputs = torch.from_numpy(np.array(batch_insts[i], dtype=np.float) / 255.0).float().to(device)   
+                    tinputs = torch.from_numpy(batch_insts[i] / 255.0).float().to(device)   
                     if settings.USE_MASK:
-                        tmask = torch.from_numpy(np.array(batch_masks[i], dtype=np.float)).float().to(device)   
+                        tmask = torch.from_numpy(batch_masks[i]).float().to(device)   
                     else:
                         tmask = None
                     slabels = []

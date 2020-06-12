@@ -81,12 +81,14 @@ else:
     transforms = []
 
 if args.dataset == 'webcamt':
-    data, data_insts, data_counts = load_webcamt.load_insts(settings.PREFIX_DATA, 10)
+    data, data_insts = load_webcamt.load_insts(settings.PREFIX_DATA, 10)
 elif args.dataset == 'ucspeds':
-    data, data_insts, data_counts = load_ucspeds.load_insts(settings.PREFIX_DATA, 10)
+    data, data_insts = load_ucspeds.load_insts(settings.PREFIX_DATA, 10)
 
 if settings.TEMPORAL:
-    data_insts, data_counts = utils.group_sequences(data_insts, data_counts, settings.SEQUENCE_SIZE)
+    data_insts= utils.group_sequences(data_insts, settings.SEQUENCE_SIZE)
+
+data_insts_no_aug = utils.remove_augmentations(data_insts)
 
 
 ##############################
@@ -159,18 +161,13 @@ for i in range(len(data_insts)):
 
     optimizer = torch.optim.Adam(mdan.parameters(), lr=lr, weight_decay=0)
 
-    size = len(data_insts[i])
-    indices = np.random.permutation(size)
-    test_idx = indices[int(settings.VALIDATION_TEST_RATIO*size):]
-    test_insts, test_counts = data_insts[i][test_idx], data_counts[i][test_idx]
-    val_idx = indices[:int(settings.VALIDATION_TEST_RATIO*size)]
-    val_insts, val_counts = data_insts[i][val_idx], data_counts[i][val_idx]           
+    val_insts, test_insts = utils.split_test_validation(data_insts_no_aug[i])           
 
     
     if ORIGINAL:
-        domain_insts, domain_counts = utils.concatenate_data_insts(data_insts, data_counts, i)
+        domain_insts = utils.concatenate_data_insts(data_insts, i)
     else:
-        domain_insts, domain_counts = data_insts, data_counts
+        domain_insts = data_insts
 
     # Training phase.
 
@@ -181,10 +178,10 @@ for i in range(len(data_insts)):
             running_count_loss = 0.0
             running_density_loss = 0.0
             no_batches = 0
-            train_loader = utils.multi_data_loader(domain_insts, domain_counts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms=transforms)
+            train_loader = utils.multi_data_loader(domain_insts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms=transforms)
             
             for batch_insts, batch_densities, batch_counts, batch_masks in train_loader:
-                #logger.info("Starting batch")
+                logger.info("Starting batch")
                 # Build source instances.
                 source_insts = []
                 source_counts = []
@@ -295,7 +292,7 @@ for i in range(len(data_insts)):
 
            
            
-            mse_density, mse_count, mae_count = utils.eval_mdan(mdan, val_insts,  val_counts, batch_size, device, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data)
+            mse_density, mse_count, mae_count = utils.eval_mdan(mdan, val_insts, batch_size, device, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data)
 
             logger.info("Validation, Count MSE: {}, Density MSE: {}, Count MAE: {}".
                       format(mse_count, mse_density, mae_count))
@@ -316,7 +313,7 @@ for i in range(len(data_insts)):
             if mae_count < results['best val count (mae)'][domain_id]:
                     results['best val count (mae)'][domain_id] = mae_count
     
-    total_mse_density, total_mse_count, total_mae_count = utils.eval_mdan(mdan, data_insts[i],  data_counts[i], batch_size, device, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data)
+    total_mse_density, total_mse_count, total_mae_count = utils.eval_mdan(mdan, data_insts_no_aug[i],  batch_size, device, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data)
 
     results['total density (mse)'][domain_id] = total_mse_density
     results['total count (mse)'][domain_id] = total_mse_count
@@ -325,7 +322,7 @@ for i in range(len(data_insts)):
     logger.info("All Target Data, Count MSE: {}, Density MSE: {}, Count MAE: {}".
                       format(total_mse_count, total_mse_density, total_mae_count))
 
-    final_mse_density, final_mse_count, final_mae_count = utils.eval_mdan(best_mdan, test_insts, test_counts, batch_size, device, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data)
+    final_mse_density, final_mse_count, final_mae_count = utils.eval_mdan(best_mdan, test_insts, batch_size, device, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data)
 
     results['test density (mse)'][domain_id] = final_mse_density
     results['test count (mse)'][domain_id] = final_mse_count

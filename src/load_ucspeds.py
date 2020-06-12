@@ -5,7 +5,7 @@ import cv2
 import joblib
 import scipy.io as sio
 import numpy as np
-
+import transformations
 
 FRAMES_SPACING = 2
 SIGMAX = 8
@@ -71,7 +71,11 @@ def compute_mask(domain_path, data_domain):
             file_path = os.path.join(domain_path, file)
             #print(file_path)
             mask = sio.loadmat(file_path)
-            data_domain[1].mask = mask['roi'][0][0][2]
+            data_domain[1].mask = np.array([mask['roi'][0][0][2]], dtype=np.float)
+
+            if settings.LOAD_DATA_AUGMENTATION:
+                mask_s90 = transformations.transform_matrix_channels(data_domain[1].mask, transformations.symmetric, 90)
+                data_domain[1].augmentation = {'s90': mask_s90}
 
 def compute_densities(domain_path, data_domain):
     subfiles = [f for f in os.listdir(domain_path)]
@@ -92,15 +96,14 @@ def compute_densities(domain_path, data_domain):
                             centers.append([person[0], person[1]])
                             sigmas.append([SIGMAX, SIGMAY])
                             shape = data_domain[vid_number].frames[real_frame_number].frame.shape
-                        '''
-                        if settings.STORE_MASK:
-                            mask = data_domain[vid_number].mask
-                        else:
-                            mask = None
-                        '''
+                        
                         data_domain[vid_number].frames[real_frame_number].density = utils.density_map((shape[1], shape[2]), centers, sigmas, mask=None).reshape((1, shape[1], shape[2]))
                         data_domain[vid_number].frames[real_frame_number].count = len(data_matlab['fgt'][0][0][0][0][frame_number][0][0][0])
-    
+
+                        if settings.LOAD_DATA_AUGMENTATION:
+                            density_s90 = transformations.transform_matrix_channels(data_domain[vid_number].frames[real_frame_number].density, transformations.symmetric, 90)
+                            data_domain[vid_number].frames[real_frame_number].density_augmentation = {'s90': density_s90}
+
     for vid_number in data_domain.keys():
         keys = list(data_domain[vid_number].frames.keys())
         for frame_number in keys:
@@ -152,9 +155,9 @@ def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefi
                         frame_aug = frames_aug[frame_aug_key]
                         density_aug = densities_aug[frame_aug_key]
                         frame_path = os.path.join(video_directory_frame, prefix_frames+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
-                        joblib.dump(frame, frame_path)
+                        joblib.dump(frame_aug, frame_path)
                         density_path = os.path.join(video_directory_density, prefix_densities+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
-                        joblib.dump(density, density_path)
+                        joblib.dump(density_aug, density_path)
                         frames_aug[frame_aug_key] = 0
                         densities_aug[frame_aug_key] = 0 
 
@@ -198,6 +201,9 @@ def load_data(save_changes=True):
                                 image_path = os.path.join(subsubdir_path, image)
                                 frame_data = FrameDataUCS()
                                 frame_data.frame = np.moveaxis(cv2.imread(image_path), 2, 0)
+                                if settings.LOAD_DATA_AUGMENTATION:
+                                    frame_s90 = transformations.transform_matrix_channels(frame_data.frame, transformations.symmetric, 90)
+                                    frame_data.augmentation = { 's90': frame_s90}
                                 #print(frame_data.frame.shape)
                                 real_frame_number = int((clip_number*200+frame_number-1)/FRAMES_SPACING)
                                 video_data.frames[real_frame_number] = frame_data
@@ -245,18 +251,21 @@ def load_structure(is_frame, domain_id, video_id, frame_id, prefix, data_augment
     #print(structure.shape)
     return structure
 
-def load_mask(data, domain_id, video_id):
+def load_mask(data, domain_id, video_id, data_augment = None):
 
-    return data[domain_id][int(video_id)].mask
+    if data_augment is None or data_augment == 'None':
+        return data[domain_id][int(video_id)].mask
+    elif data_augment == 's90':
+        return data[domain_id][int(video_id)].augmentation['s90']
 
 def load_insts(prefix_data, max_insts_per_domain=None):
     data = load_data_structure(prefix_data)
 
-    data_insts, data_counts = [], []
+    data_insts = []
 
     for domain_id in settings.UCSPEDS_DOMAINS:
 
-        domain_insts, domain_counts = [], []
+        domain_insts = []
     
         new_num_insts = 0
         video_ids = list(data[domain_id].keys())
@@ -278,12 +287,6 @@ def load_insts(prefix_data, max_insts_per_domain=None):
                         for aug_key in frame_data.augmentation:
                             new_data_insts.setdefault(aug_key, []).append([domain_id, video_id, frame_id, aug_key])
                     
-
-                    no_people = frame_data.count
-                    new_data_counts.setdefault('None', []).append(no_people)
-                    if settings.LOAD_DATA_AUGMENTATION:
-                        for aug_key in frame_data.augmentation:
-                            new_data_counts.setdefault(aug_key, []).append(no_people)
                 
                     new_num_insts += 1
                 else:
@@ -292,23 +295,14 @@ def load_insts(prefix_data, max_insts_per_domain=None):
             if settings.TEMPORAL:
                 for key in new_data_insts:
                     domain_insts.append(new_data_insts[key])
-                    domain_counts.append(new_data_counts[key])
                 
             else:
                 for key in new_data_insts:
                     domain_insts += new_data_insts[key]
-                    domain_counts += new_data_counts[key]
 
         data_insts.append(domain_insts)
-        data_counts.append(domain_counts)
- 
-
-    for domain_id in range(len(data_insts)):
-
-        data_counts[domain_id] = np.array(data_counts[domain_id]) 
-        data_insts[domain_id] = np.array(data_insts[domain_id]) 
     
-    return data, data_insts, data_counts
+    return data, data_insts
 
 if __name__ == '__main__':
     data = load_data()

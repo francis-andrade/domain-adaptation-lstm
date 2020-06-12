@@ -53,8 +53,8 @@ class VehicleData:
     
     def calculateSigma(self):
         factor = 1/1.96 # so that exactly 5% of gaussian distribution is outside the car boundaries
-        #return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
-        return [15, 15]               
+        return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
+        #return [15, 15]               
 
 class FrameData:
     
@@ -98,12 +98,8 @@ class FrameData:
                 self.density = zoom(self.density, (zoom_shape[0]/self.density.shape[0], zoom_shape[1]/self.density.shape[1]))
              self.density = self.density.reshape(1, zoom_shape[0], zoom_shape[1])
              if settings.LOAD_DATA_AUGMENTATION:
-                density_r180 = transformations.transform_matrix_channels(self.density, utils.rotate, 180)
-                density_s0 = transformations.transform_matrix_channels(self.density, utils.symmetric, 0)
-                density_s90 = transformations.transform_matrix_channels(self.density, utils.symmetric, 90)
-                density_brightness = np.copy(self.density)
-                density_contrast = np.copy(self.density)
-                self.density_augmentation = {'r180': density_r180, 's0': density_s0, 's90': density_s90, 'brightness': density_brightness, 'contrast': density_contrast}
+                density_s90 = transformations.transform_matrix_channels(self.density, transformations.symmetric, 90)
+                self.density_augmentation = {'s90': density_s90}
              
     
     def drawGaussian(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask = None):
@@ -159,7 +155,10 @@ class CameraTimeData:
         #print(self.year,' ', self.month,' ', self.day,' ', self.hour,' ', self.minute)
         #print(self.points)
         self.mask = build_mask(self.points)
-    
+        if settings.LOAD_DATA_AUGMENTATION:
+            mask_s90 = transformations.transform_matrix_channels(self.mask, transformations.symmetric, 90)
+            self.augmentation = {'s90': mask_s90}
+
     def extractFramesFromVideo(self, filepath, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
         frame_images = utils.readFramesFromVideo(filepath)
         '''
@@ -179,23 +178,13 @@ class CameraTimeData:
                     self.frames[i+1].frame = zoom(self.frames[i+1].frame, (zoom_shape[0]/self.frames[i+1].frame.shape[0], zoom_shape[1]/self.frames[i+1].frame.shape[1], 1))
                     self.frames[i+1].frame = np.moveaxis(self.frames[i+1].frame, 2, 0)
                     if settings.LOAD_DATA_AUGMENTATION:
-                        frame_r180 = transformations.transform_matrix_channels(self.frames[i+1].frame, utils.rotate, 180)
-                        frame_s0 = transformations.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 0)
-                        frame_s90 = transformations.transform_matrix_channels(self.frames[i+1].frame, utils.symmetric, 90)
-                        frame_brightness = utils.change_brightness_contrast(self.frames[i+1].frame, 50, 0)
-                        frame_contrast = utils.change_brightness_contrast(self.frames[i+1].frame, 0, 30)
-                        self.frames[i+1].augmentation = {'r180': frame_r180, 's0': frame_s0, 's90': frame_s90, 'contrast': frame_contrast, 'brightness': frame_brightness}
+                        frame_s90 = transformations.transform_matrix_channels(self.frames[i+1].frame, transformations.symmetric, 90)
+                        self.frames[i+1].augmentation = { 's90': frame_s90}
 
     
     def computeBoundingBox(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
         for frame_id in self.frames:
             if self.frames[frame_id].frame is not None:
-                '''
-                if settings.STORE_MASK:
-                    mask = self.mask
-                else:
-                    mask = None
-                '''
                 self.frames[frame_id].computeBoundingBox(zoom_shape, mask=None)
                 
            
@@ -327,9 +316,9 @@ def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefi
                         frame_aug = frames_aug[frame_aug_key]
                         density_aug = densities_aug[frame_aug_key]
                         frame_path = os.path.join(time_directory_frame, prefix_frames+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
-                        joblib.dump(frame, frame_path)
+                        joblib.dump(frame_aug, frame_path)
                         density_path = os.path.join(time_directory_density, prefix_densities+'_'+str(str_id)+'_'+frame_aug_key+'.npy')
-                        joblib.dump(density, density_path)
+                        joblib.dump(density_aug, density_path)
                         frames_aug[frame_aug_key] = 0
                         densities_aug[frame_aug_key] = 0
 
@@ -371,14 +360,21 @@ def build_mask(points):
 
     mask = zoom(mask, (settings.WEBCAMT_NEW_SHAPE[0] / settings.WEBCAMT_SHAPE[0], settings.WEBCAMT_NEW_SHAPE[1] / settings.WEBCAMT_SHAPE[1]))
 
-    return mask
+    return np.array([mask], dtype=np.float)
 
-def load_mask(data, domain_id, time_id):
+def load_mask(data, domain_id, time_id, data_augment=None):
 
     if settings.STORE_MASK:
-        return data[int(domain_id)].camera_times[time_id].mask
+        if data_augment is None or data_augment == 'None':
+            return data[int(domain_id)].camera_times[time_id].mask
+        elif data_augment == 's90':
+            return data[int(domain_id)].camera_times[time_id].augmentation['s90']
     else:
-        return build_mask(data[int(domain_id)].camera_times[time_id].points)
+        mask = build_mask(data[int(domain_id)].camera_times[time_id].points)
+        if data_augment is None or data_augment == 'None':
+            return mask
+        elif data_augment == 's90':
+            return transformations.transform_matrix_channels(mask, transformations.symmetric, 90)
 
 def save_densities(data, prefix):
     densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Densities')
@@ -430,11 +426,11 @@ def load_insts(prefix_data, max_insts_per_domain=None):
     
     print('Finished loading data')
 
-    data_insts, data_counts = [], []
+    data_insts = []
 
     for domain_id in settings.WEBCAMT_DOMAINS:
         #print(domain_id)
-        domain_insts, domain_counts = [], []
+        domain_insts = []
     
         new_num_insts = 0
         camera_times_ids = list(data[domain_id].camera_times.keys())
@@ -456,38 +452,21 @@ def load_insts(prefix_data, max_insts_per_domain=None):
                     if settings.LOAD_DATA_AUGMENTATION:
                         for aug_key in frame_data.augmentation:
                             new_data_insts.setdefault(aug_key, []).append([domain_id, time_id, frame_id, aug_key])
-                    
 
-                    no_vehicles = len(frame_data.vehicles)
-                    new_data_counts.setdefault('None', []).append(no_vehicles)
-                    if settings.LOAD_DATA_AUGMENTATION:
-                        for aug_key in frame_data.augmentation:
-                            new_data_counts.setdefault(aug_key, []).append(no_vehicles)
-                
                     new_num_insts += 1
                 else:
                     print('None')
         
             if settings.TEMPORAL:
                 for key in new_data_insts:
-                    domain_insts.append(new_data_insts[key])
-                    domain_counts.append(new_data_counts[key])
-                
+                    domain_insts.append(new_data_insts[key])                
             else:
                 for key in new_data_insts:
                     domain_insts += new_data_insts[key]
-                    domain_counts += new_data_counts[key]
 
         data_insts.append(domain_insts)
-        data_counts.append(domain_counts)
- 
-
-    for domain_id in range(len(data_insts)):
-
-        data_counts[domain_id] = np.array(data_counts[domain_id], dtype=np.float) 
-        data_insts[domain_id] = np.array(data_insts[domain_id]) 
     
-    return data, data_insts, data_counts
+    return data, data_insts
    
 
 def compute_densities(data):

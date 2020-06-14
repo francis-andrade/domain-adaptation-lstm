@@ -46,6 +46,7 @@ parser.add_argument('--prefix_densities', default='first', type=str, metavar='',
 parser.add_argument('--dataset', default='webcamt', type=str, metavar='', help='Dataset [webcamt|ucspeds]')
 parser.add_argument('--use_mask', default=True, type=int, metavar='', help='Use mask')
 parser.add_argument('--use_transformations', default=True, type=int, metavar='', help='Use Data Augmentation')
+parser.add_argument('--max_frames_per_domain', default=2000, type=int, metavar='', help='Max. number of frames per domain')
 # Compile and configure all the model parameters.
 args = parser.parse_args()
 device = torch.device("cuda:"+args.cuda if torch.cuda.is_available() else "cpu")
@@ -75,15 +76,12 @@ settings.PREFIX_DATA = args.prefix_data
 
 settings.USE_MASK = args.use_mask
 
-if args.use_transformations:
-    transforms = settings.TRANSFORMS
-else:
-    transforms = []
+settings.LOAD_DATA_AUGMENTATION = args.use_transformations # This was changed on 14/06-15:19. Before it meant to use transformations on the run
 
 if args.dataset == 'webcamt':
-    data, data_insts = load_webcamt.load_insts(settings.PREFIX_DATA, 10)
+    data, data_insts = load_webcamt.load_insts(settings.PREFIX_DATA, args.max_frames_per_domain)
 elif args.dataset == 'ucspeds':
-    data, data_insts = load_ucspeds.load_insts(settings.PREFIX_DATA, 10)
+    data, data_insts = load_ucspeds.load_insts(settings.PREFIX_DATA, args.max_frames_per_domain)
 
 if settings.TEMPORAL:
     data_insts= utils.group_sequences(data_insts, settings.SEQUENCE_SIZE)
@@ -178,7 +176,7 @@ for i in range(len(data_insts)):
             running_count_loss = 0.0
             running_density_loss = 0.0
             no_batches = 0
-            train_loader = utils.multi_data_loader(domain_insts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms=transforms)
+            train_loader = utils.multi_data_loader(domain_insts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data)
             
             for batch_insts, batch_densities, batch_counts, batch_masks in train_loader:
                 logger.info("Starting batch")
@@ -337,4 +335,13 @@ logger.info("Prediction accuracy with multiple source domain adaptation using ma
 results['args'] = args_dict
 logger.info(results)
 
-pickle.dump(results, open(os.path.join(settings.DATASET_DIRECTORY, '../Results/'+args.dataset+'/'+results_file+'.npy'), 'wb+'))
+if args.dataset == 'webcamt':
+    directory = settings.WEBCAMT_PREPROCESSED_DIRECTORY.lower()
+elif args.dataset == 'ucspeds':
+    directory = settings.UCSPEDS_PREPROCESSED_DIRECTORY.lower()
+
+results_directory = os.path.join(settings.DATASET_DIRECTORY, '../Results/'+directory)
+if not os.path.exists(results_directory):
+    os.makedirs(results_directory)
+
+pickle.dump(results, open(os.path.join(results_directory, results_file+'.npy'), 'wb+'))

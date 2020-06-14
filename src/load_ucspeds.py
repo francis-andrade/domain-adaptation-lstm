@@ -122,7 +122,6 @@ def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefi
     preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
     ucspeds_directory = os.path.join(preprocessed_directory, settings.UCSPEDS_PREPROCESSED_DIRECTORY)
     multiple_files_directory = os.path.join(ucspeds_directory, 'Multiple_Files')
-    data_directory = os.path.join(multiple_files_directory, 'Data')
     frames_directory = os.path.join(multiple_files_directory, 'Frames')
     densities_directory = os.path.join(multiple_files_directory, 'Densities')
     str_id = str(domain_id)
@@ -230,6 +229,9 @@ def load_data(save_changes=True):
         ucspeds_directory = os.path.join(preprocessed_directory, settings.UCSPEDS_PREPROCESSED_DIRECTORY)
         multiple_files_directory = os.path.join(ucspeds_directory, 'Multiple_Files')
         data_directory = os.path.join(multiple_files_directory, 'Data')
+        if not os.path.exists(data_directory):
+            os.makedirs(data_directory)
+
         data_path = os.path.join(data_directory, 'first'+'_'+'.npy')
         joblib.dump(data, data_path)
 

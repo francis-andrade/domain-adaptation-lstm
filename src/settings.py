@@ -29,7 +29,7 @@ WEBCAMT_SHAPE = (240, 352)
 TEMPORAL = False
 USE_GAUSSIAN = True
 SEQUENCE_SIZE = 3
-LOAD_DATA_AUGMENTATION = False
+LOAD_DATA_AUGMENTATION = True
 VALIDATION_TEST_RATIO = 0.3
 PREFIX_DATA = 'first'
 PREFIX_DENSITIES = 'first'
@@ -37,7 +37,7 @@ PREFIX_DENSITIES = 'first'
 UCSPEDS_DOMAINS = ['vidd', 'vidf']
 DATASET = 'ucspeds'
 UCSPEDS_NEW_SHAPE = (158, 238)
-USE_MASK = True
+USE_MASK = False
 STORE_MASK = True
 
 def get_new_shape():
@@ -45,7 +45,3 @@ def get_new_shape():
         return WEBCAMT_NEW_SHAPE
     elif DATASET == 'ucspeds':
         return UCSPEDS_NEW_SHAPE
-
-TRANSFORMS = []
-hor_sym = lambda matrix : transformations.transform_matrix_channels(matrix, transformations.symmetric, 90)
-TRANSFORMS.append([hor_sym, hor_sym])

@@ -48,10 +48,10 @@ class VehicleData:
         else:
             return True
     
-    def calculateCenter(self):
+    def calculate_center(self):
         return [(self.xmax+self.xmin)/2, (self.ymax+self.ymin)/2]
     
-    def calculateSigma(self):
+    def calculate_sigma(self):
         factor = 1/1.96 # so that exactly 5% of gaussian distribution is outside the car boundaries
         return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
         #return [15, 15]               
@@ -85,13 +85,16 @@ class FrameData:
                     break
             elif child.tag == "frame":
                 self.id = int(child.text)
+        
+        self.count = len(self.vehicles)
     
-    def computeBoundingBox(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask=None):
+    
+    def compute_bounding_box(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask=None):
 
         if settings.USE_GAUSSIAN:
-            self.drawGaussian(zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask=mask)
+            self.draw_gaussian(zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask=mask)
         else:
-            self.drawBoundingBox()
+            self.draw_bounding_box()
 
         if zoom_shape is not None:
              if not settings.USE_GAUSSIAN:
@@ -102,16 +105,16 @@ class FrameData:
                 self.density_augmentation = {'s90': density_s90}
              
     
-    def drawGaussian(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask = None):
+    def draw_gaussian(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask = None):
         centers = []
         sigmas = []
         for vehicle in self.vehicles:
-            centers.append(vehicle.calculateCenter())
-            sigmas.append(vehicle.calculateSigma())
+            centers.append(vehicle.calculate_center())
+            sigmas.append(vehicle.calculate_sigma())
 
         self.density = utils.density_map((self.original_shape[0], self.original_shape[1]), centers, sigmas, zoom_shape, mask)
         
-    def drawBoundingBox(self):
+    def draw_bounding_box(self):
 
         self.density = np.zeros((self.original_shape[0], self.original_shape[1]))
         print(self.density.shape)
@@ -122,6 +125,9 @@ class FrameData:
             self.density[vehicle.ymin:(vehicle.ymax+1), vehicle.xmin:(vehicle.xmax+1)] = 1
 
     
+    def compute_mask_count(self, mask):
+        self.count_mask = np.sum(self.density*mask)
+
 
 class CameraData:
 
@@ -159,7 +165,7 @@ class CameraTimeData:
             mask_s90 = transformations.transform_matrix_channels(self.mask, transformations.symmetric, 90)
             self.augmentation = {'s90': mask_s90}
 
-    def extractFramesFromVideo(self, filepath, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
+    def extract_frames_from_video(self, filepath, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
         frame_images = utils.readFramesFromVideo(filepath)
         '''
         if len(self.frames) != len(frame_images):
@@ -182,10 +188,16 @@ class CameraTimeData:
                         self.frames[i+1].augmentation = { 's90': frame_s90}
 
     
-    def computeBoundingBox(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
+    def compute_bounding_box(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
         for frame_id in self.frames:
             if self.frames[frame_id].frame is not None:
-                self.frames[frame_id].computeBoundingBox(zoom_shape, mask=None)
+                self.frames[frame_id].compute_bounding_box(zoom_shape, mask=None)
+    
+    def compute_mask_counts(self):
+        for frame_id in self.frames:
+            if self.frames[frame_id].frame is not None and self.frames[frame_id].density is not None:
+                self.frames[frame_id].compute_mask_count(self.mask)
+
                 
            
 
@@ -238,15 +250,20 @@ def load_data(max_videos_per_domain = None, zoom_shape = settings.WEBCAMT_NEW_SH
                     if i >= max_videos_per_domain:
                         break
                 [time_identifier, subsubdir_path] = video
-                camera.camera_times[time_identifier].extractFramesFromVideo(subsubdir_path, zoom_shape)
+                camera.camera_times[time_identifier].extract_frames_from_video(subsubdir_path, zoom_shape)
                 if compute_bounding_box:
-                    camera.camera_times[time_identifier].computeBoundingBox(zoom_shape)
+                    camera.camera_times[time_identifier].compute_bounding_box(zoom_shape)
+                    print("Computing domain: ", domain_id, ' ', time_identifier)
+                    camera.camera_times[time_identifier].compute_mask_counts()
+            
             
             if save_in_stages:
                 save_data_multiple_files_domain( data[domain_id], domain_id, settings.PREFIX_DATA, settings.PREFIX_DENSITIES)
                
     if save_in_stages:
-        multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Multiple_Files')
+        preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+        webcamt_directory = os.path.join(preprocessed_directory, settings.WEBCAMT_PREPROCESSED_DIRECTORY)
+        multiple_files_directory = os.path.join(webcamt_directory, 'Multiple_Files')
         data_directory = os.path.join(multiple_files_directory, 'Data')
         data_path = os.path.join(data_directory, settings.PREFIX_DATA+'_'+'.npy')
         joblib.dump(data, data_path)
@@ -258,7 +275,9 @@ def save_data(data, prefix):
     Saves data to a file
     :param data: data we want to save in the file
     """
-    data_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Data')
+    preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+    webcamt_directory = os.path.join(preprocessed_directory, settings.WEBCAMT_PREPROCESSED_DIRECTORY)
+    data_directory = os.path.join(webcamt_directory, 'Data')
     for domain_id in data:
         joblib.dump(data[domain_id], os.path.join(data_directory,prefix+'_'+ str(domain_id)+'.npy'))
 
@@ -267,13 +286,17 @@ def save_data_multiple_files(data, prefix_data, prefix_frames, prefix_densities)
     for domain_id in data:      
         save_data_multiple_files_domain(data[domain_id], domain_id, prefix_frames, prefix_densities)
     
-    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Multiple_Files')
+    preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+    webcamt_directory = os.path.join(preprocessed_directory, settings.WEBCAMT_PREPROCESSED_DIRECTORY)
+    multiple_files_directory = os.path.join(webcamt_directory, 'Multiple_Files')
     data_directory = os.path.join(multiple_files_directory, 'Data')
     data_path = os.path.join(data_directory, prefix_data+'_'+'.npy')
     joblib.dump(data, data_path)
 
 def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefix_densities):
-    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Multiple_Files')
+    preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+    webcamt_directory = os.path.join(preprocessed_directory, settings.WEBCAMT_PREPROCESSED_DIRECTORY)
+    multiple_files_directory = os.path.join(webcamt_directory, 'Multiple_Files')
     data_directory = os.path.join(multiple_files_directory, 'Data')
     frames_directory = os.path.join(multiple_files_directory, 'Frames')
     densities_directory = os.path.join(multiple_files_directory, 'Densities')
@@ -323,7 +346,9 @@ def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefi
                         densities_aug[frame_aug_key] = 0
 
 def load_data_structure(prefix):
-    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Multiple_Files')
+    preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+    webcamt_directory = os.path.join(preprocessed_directory, settings.WEBCAMT_PREPROCESSED_DIRECTORY)
+    multiple_files_directory = os.path.join(webcamt_directory, 'Multiple_Files')
     data_directory = os.path.join(multiple_files_directory, 'Data')
     data_path = os.path.join(data_directory, prefix+'_'+'.npy')
     data = joblib.load(data_path)
@@ -332,7 +357,9 @@ def load_data_structure(prefix):
 
 
 def load_structure(is_frame, domain_id, time_id, frame_id, prefix, data_augment = None):
-    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Multiple_Files')
+    preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+    webcamt_directory = os.path.join(preprocessed_directory, settings.WEBCAMT_PREPROCESSED_DIRECTORY)
+    multiple_files_directory = os.path.join(webcamt_directory, 'Multiple_Files')
     if is_frame:
         directory = os.path.join(multiple_files_directory, 'Frames')
     else:
@@ -364,20 +391,14 @@ def build_mask(points):
 
 def load_mask(data, domain_id, time_id, data_augment=None):
 
-    if settings.STORE_MASK:
-        if data_augment is None or data_augment == 'None':
-            return data[int(domain_id)].camera_times[time_id].mask
-        elif data_augment == 's90':
-            return data[int(domain_id)].camera_times[time_id].augmentation['s90']
-    else:
-        mask = build_mask(data[int(domain_id)].camera_times[time_id].points)
-        if data_augment is None or data_augment == 'None':
-            return mask
-        elif data_augment == 's90':
-            return transformations.transform_matrix_channels(mask, transformations.symmetric, 90)
+    if data_augment is None or data_augment == 'None':
+        return data[int(domain_id)].camera_times[time_id].mask
+    elif data_augment == 's90':
+        return data[int(domain_id)].camera_times[time_id].augmentation['s90']
+
 
 def save_densities(data, prefix):
-    densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Densities')
+    densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/'+settings.WEBCAMT_PREPROCESSED_DIRECTORY+'/Densities')
     for domain_id in data:
         dens_dict = {}
         for time_id in data[domain_id].camera_times:
@@ -396,8 +417,8 @@ def save_densities(data, prefix):
 
 def load_data_from_file(prefix_data, prefix_densities):
     data = {}
-    data_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Data')
-    densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/WebCamT/Densities')
+    data_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/'+settings.WEBCAMT_PREPROCESSED_DIRECTORY+'/Data')
+    densities_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/'+settings.WEBCAMT_PREPROCESSED_DIRECTORY+'/Densities')
     files = [d for d in os.listdir(data_directory)]
     for file in files:
         file_path = os.path.join(data_directory, file)
@@ -473,7 +494,7 @@ def compute_densities(data):
     for domain_id in data:
         dens_dict = {}
         for time_id in data[domain_id].camera_times:
-            data[domain_id].camera_times[time_id].computeBoundingBox(settings.WEBCAMT_NEW_SHAPE)
+            data[domain_id].camera_times[time_id].compute_bounding_box(settings.WEBCAMT_NEW_SHAPE)
             
     
 

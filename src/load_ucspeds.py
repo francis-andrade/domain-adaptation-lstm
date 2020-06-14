@@ -7,7 +7,7 @@ import scipy.io as sio
 import numpy as np
 import transformations
 
-FRAMES_SPACING = 2
+FRAMES_SPACING = 5
 SIGMAX = 8
 SIGMAY = 15
 
@@ -54,6 +54,11 @@ class VideoDataUCS:
     def __init__(self):
         self.frames = {}
         self.mask = None
+    
+    def compute_mask_counts(self):
+         for frame_id in self.frames:
+            if self.frames[frame_id].frame is not None and self.frames[frame_id].density is not None:
+                self.frames[frame_id].compute_mask_count(self.mask)
 
 class FrameDataUCS:
 
@@ -61,6 +66,9 @@ class FrameDataUCS:
         self.frame = None
         self.density = None
         self.count = None
+    
+    def compute_mask_count(self, mask):
+        self.count_mask = np.sum(self.density*mask)
 
 
 def compute_mask(domain_path, data_domain):
@@ -111,7 +119,9 @@ def compute_densities(domain_path, data_domain):
                 data_domain[vid_number].frames.pop(frame_number)                
 
 def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefix_densities):
-    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/UCSPeds/Multiple_Files')
+    preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+    ucspeds_directory = os.path.join(preprocessed_directory, settings.UCSPEDS_PREPROCESSED_DIRECTORY)
+    multiple_files_directory = os.path.join(ucspeds_directory, 'Multiple_Files')
     data_directory = os.path.join(multiple_files_directory, 'Data')
     frames_directory = os.path.join(multiple_files_directory, 'Frames')
     densities_directory = os.path.join(multiple_files_directory, 'Densities')
@@ -210,12 +220,15 @@ def load_data(save_changes=True):
                 
             compute_densities(subdir_path, data[domain_id])
             compute_mask(subdir_path, data[domain_id])
+            data[domain_id][1].compute_mask_counts()
 
         if save_changes:
             save_data_multiple_files_domain( data[domain_id], domain_id, 'first', 'first')           
     
     if save_changes:
-        multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/UCSPeds/Multiple_Files')
+        preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+        ucspeds_directory = os.path.join(preprocessed_directory, settings.UCSPEDS_PREPROCESSED_DIRECTORY)
+        multiple_files_directory = os.path.join(ucspeds_directory, 'Multiple_Files')
         data_directory = os.path.join(multiple_files_directory, 'Data')
         data_path = os.path.join(data_directory, 'first'+'_'+'.npy')
         joblib.dump(data, data_path)
@@ -225,7 +238,9 @@ def load_data(save_changes=True):
 
 
 def load_data_structure(prefix):
-    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/UCSPeds/Multiple_Files')
+    preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+    ucspeds_directory = os.path.join(preprocessed_directory, settings.UCSPEDS_PREPROCESSED_DIRECTORY)
+    multiple_files_directory = os.path.join(ucspeds_directory, 'Multiple_Files')
     data_directory = os.path.join(multiple_files_directory, 'Data')
     data_path = os.path.join(data_directory, prefix+'_'+'.npy')
     data = joblib.load(data_path)
@@ -233,7 +248,9 @@ def load_data_structure(prefix):
 
 
 def load_structure(is_frame, domain_id, video_id, frame_id, prefix, data_augment = None):
-    multiple_files_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed/UCSPeds/Multiple_Files')
+    preprocessed_directory = os.path.join(settings.DATASET_DIRECTORY, 'Preprocessed')
+    ucspeds_directory = os.path.join(preprocessed_directory, settings.UCSPEDS_PREPROCESSED_DIRECTORY)
+    multiple_files_directory = os.path.join(ucspeds_directory, 'Multiple_Files')
     if is_frame:
         directory = os.path.join(multiple_files_directory, 'Frames')
     else:

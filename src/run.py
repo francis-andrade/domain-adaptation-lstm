@@ -103,9 +103,9 @@ lambda_ = args_dict["lambda"]
 
 if args.results_file == "None":
     if ORIGINAL:
-        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+'noapply'+'_'+str(args.lr)+'_'+'noapply'
+        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+'noapply'+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_'+'noapply'
     else:
-        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_'+str(args.mu)
+        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_'+str(args.mu)
 else:
     results_file = args.results_file
 
@@ -176,10 +176,11 @@ for i in range(len(data_insts)):
             running_count_loss = 0.0
             running_density_loss = 0.0
             no_batches = 0
+            running_domain_losses = np.zeros(num_domains)
             train_loader = utils.multi_data_loader(domain_insts, batch_size, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data)
             
             for batch_insts, batch_densities, batch_counts, batch_masks in train_loader:
-                logger.info("Starting batch")
+                #logger.info("Starting batch")
                 # Build source instances.
                 source_insts = []
                 source_counts = []
@@ -276,12 +277,13 @@ for i in range(len(data_insts)):
                     running_loss += loss.item()
                     running_count_loss += count_losses.mean().item()
                     running_density_loss += density_losses.mean().item()
+                    running_domain_losses += domain_losses.detach().cpu().numpy()
                 
                 loss.backward()
                 optimizer.step()
             
             logger.info("Iteration {}, loss = {}, mean count loss = {}, mean density loss = {}".format(t, running_loss, running_count_loss / no_batches, running_density_loss / no_batches))
-
+            logger.info("Mean domain losses = " + str(running_domain_losses / no_batches))
             if args_dict['use_visdom']:
                 # plot the losses
                 loss_plt.plot('global loss ('+str(domain_id)+')', 'train', 'MSE', t, running_loss)

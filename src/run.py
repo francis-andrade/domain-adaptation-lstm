@@ -47,6 +47,7 @@ parser.add_argument('--dataset', default='webcamt', type=str, metavar='', help='
 parser.add_argument('--use_mask', default=True, type=int, metavar='', help='Use mask')
 parser.add_argument('--use_transformations', default=True, type=int, metavar='', help='Use Data Augmentation')
 parser.add_argument('--max_frames_per_domain', default=2000, type=int, metavar='', help='Max. number of frames per domain')
+parser.add_argument('--sequence_size', default=10, type=int, metavar='', help='Sequence Size for temporal models')
 # Compile and configure all the model parameters.
 args = parser.parse_args()
 device = torch.device("cuda:"+args.cuda if torch.cuda.is_available() else "cpu")
@@ -73,6 +74,7 @@ else:
 
 settings.PREFIX_DENSITIES = args.prefix_densities
 settings.PREFIX_DATA = args.prefix_data
+settings.SEQUENCE_SIZE = args.sequence_size
 
 settings.USE_MASK = args.use_mask
 
@@ -103,9 +105,9 @@ lambda_ = args_dict["lambda"]
 
 if args.results_file == "None":
     if ORIGINAL:
-        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+'noapply'+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_'+'noapply'
+        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+'noapply'+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_noapply'
     else:
-        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_'+str(args.mu)
+        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_'+str(args.mu)
 else:
     results_file = args.results_file
 

@@ -291,6 +291,7 @@ for i in range(len(data_insts)):
                 loss_plt.plot('global loss ('+str(domain_id)+')', 'train', 'MSE', t, running_loss)
                 loss_plt.plot('density loss ('+str(domain_id)+')', 'train', 'MSE', t, running_density_loss / no_batches)
                 loss_plt.plot('count loss ('+str(domain_id)+')', 'train', 'MSE', t, running_count_loss / no_batches)
+                loss_plt.plot('domain loss', 'train', '', t, np.mean(running_domain_losses) / no_batches)
 
            
            

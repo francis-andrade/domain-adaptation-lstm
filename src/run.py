@@ -105,9 +105,9 @@ lambda_ = args_dict["lambda"]
 
 if args.results_file == "None":
     if ORIGINAL:
-        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+'noapply'+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_noapply'
+        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+'noapply'+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_max_frames_per_domain'+str(args.max_frames_per_domain)+'_noapply'
     else:
-        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_'+str(args.mu)
+        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_max_frames_per_domain'+str(args.max_frames_per_domain)+'_'+str(args.mu)
 else:
     results_file = args.results_file
 
@@ -291,7 +291,7 @@ for i in range(len(data_insts)):
                 loss_plt.plot('global loss ('+str(domain_id)+')', 'train', 'MSE', t, running_loss)
                 loss_plt.plot('density loss ('+str(domain_id)+')', 'train', 'MSE', t, running_density_loss / no_batches)
                 loss_plt.plot('count loss ('+str(domain_id)+')', 'train', 'MSE', t, running_count_loss / no_batches)
-                loss_plt.plot('domain loss', 'train', '', t, np.mean(running_domain_losses) / no_batches)
+                loss_plt.plot('domain loss ('+str(domain_id)+')', 'train', '', t, np.mean(running_domain_losses) / no_batches)
 
            
            

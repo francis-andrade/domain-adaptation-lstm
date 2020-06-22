@@ -58,6 +58,7 @@ logger.info("Using device: "+str(device))
 # Set random number seed.
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
+torch.cuda.manual_seed(args.seed)
 # Loading the randomly partition the amazon data set.
 logger.info('Started loading data')
 

@@ -60,9 +60,9 @@ if __name__ == '__main__':
     #data =  load_data.load_data_from_file('first', 'proportional')
 
     if settings.DATASET == 'webcamt':
-        data, data_insts = load_webcamt.load_insts(settings.PREFIX_DATA, 10)
+        data, data_insts = load_webcamt.load_insts(settings.PREFIX_DATA, 20)
     elif settings.DATASET == 'ucspeds':
-        data, data_insts = load_ucspeds.load_insts(settings.PREFIX_DATA, 10)
+        data, data_insts = load_ucspeds.load_insts(settings.PREFIX_DATA, 20)
 
     if settings.TEMPORAL:
         data_insts = utils.group_sequences(data_insts, settings.SEQUENCE_SIZE)
@@ -80,7 +80,7 @@ if __name__ == '__main__':
         matrix, transformations.symmetric, 90)
     #transforms.append([hor_sym, hor_sym])
     #transforms.append([lambda matrix : transformations.change_brightness_contrast(matrix, 30, 50), lambda matrix : matrix])
-    train_loader = utils.multi_data_loader(data_insts, 10, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms, shuffle=True)
+    train_loader = utils.multi_data_loader(data_insts, 10, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms, shuffle=False)
 
     i = 0
     #train_insts = list(train_loader)

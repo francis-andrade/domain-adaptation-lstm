@@ -5,6 +5,8 @@ import pickle
 parser = argparse.ArgumentParser()
 parser.add_argument("--filepath", help="Results filepath", type = str, default=".")
 parser.add_argument("--parameter", help="Contains parameter", type=str, default="None")
+parser.add_argument("--parameter2", help="Contains second parameter", type=str, default="None")
+parser.add_argument('--make_graphics', help="Make grapfics", type=str, default=False)
 
 args = parser.parse_args()
 
@@ -12,11 +14,15 @@ filepath = args.filepath
 
 result_files = os.listdir(filepath)
 
+
 def avg_dict(dict):
     sum = 0
     for k in dict.keys():
         sum += dict[k]
     return sum / len(dict.keys())
+
+def verify_parameters(filename, parameter1, parameter2):
+    parameter1 == 'None' or (parameter1 in filename and (parameter2 == 'None' or parameter2 in filename))
 
 res_total_mae = {}
 avg_total_mae = {}
@@ -25,7 +31,7 @@ avg_best_mae = {}
 
 for result_file in result_files:
     
-    if args.parameter == 'None' or args.parameter in result_file:
+    if verify_parameters(result_file, args.parameter, args.parameter2):
         keywords = result_file.split('_')
         if len(keywords) > 2:
             model = keywords[0]

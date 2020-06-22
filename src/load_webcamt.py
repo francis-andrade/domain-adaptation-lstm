@@ -92,17 +92,18 @@ class FrameData:
     def compute_bounding_box(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask=None):
 
         if settings.USE_GAUSSIAN:
-            self.draw_gaussian(zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask=mask)
+            self.draw_gaussian(zoom_shape = zoom_shape, mask=mask)
         else:
             self.draw_bounding_box()
 
         if zoom_shape is not None:
              if not settings.USE_GAUSSIAN:
                 self.density = zoom(self.density, (zoom_shape[0]/self.density.shape[0], zoom_shape[1]/self.density.shape[1]))
-             self.density = self.density.reshape(1, zoom_shape[0], zoom_shape[1])
-             if settings.LOAD_DATA_AUGMENTATION:
-                density_s90 = transformations.transform_matrix_channels(self.density, transformations.symmetric, 90)
-                self.density_augmentation = {'s90': density_s90}
+
+        self.density = self.density.reshape(1, self.density.shape[0], self.density.shape[1])
+        if settings.LOAD_DATA_AUGMENTATION:
+            density_s90 = transformations.transform_matrix_channels(self.density, transformations.symmetric, 90)
+            self.density_augmentation = {'s90': density_s90}
              
     
     def draw_gaussian(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE, mask = None):
@@ -142,7 +143,7 @@ class CameraTimeData:
         self.frames = {}
 
     
-    def find_region_of_interest(self, mask_file):
+    def find_region_of_interest(self, mask_file, zoom_shape=settings.WEBCAMT_NEW_SHAPE):
         self.points = []
         line_no = 0
         while True:
@@ -160,12 +161,12 @@ class CameraTimeData:
         
         #print(self.year,' ', self.month,' ', self.day,' ', self.hour,' ', self.minute)
         #print(self.points)
-        self.mask = build_mask(self.points)
+        self.mask = build_mask(self.points, zoom_shape)
         if settings.LOAD_DATA_AUGMENTATION:
             mask_s90 = transformations.transform_matrix_channels(self.mask, transformations.symmetric, 90)
             self.augmentation = {'s90': mask_s90}
 
-    def extract_frames_from_video(self, filepath, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
+    def extract_frames_from_video(self, filepath, zoom_shape = settings.WEBCAMT_NEW_SHAPE, max_frames_per_video=None):
         frame_images = utils.readFramesFromVideo(filepath)
         '''
         if len(self.frames) != len(frame_images):
@@ -174,6 +175,10 @@ class CameraTimeData:
             print(len(frame_images))
         '''
         for i in range(min(len(self.frames), len(frame_images))):
+            if max_frames_per_video is not None:
+                if i>= max_frames_per_video:
+                    break
+
             if self.frames[i+1].invalid:
                 print("Invalid: ", filepath, " ", self.frames[i+1].id, " ", self.frames[i+1].invalid_id)
                 self.frames[i+1].frame = None
@@ -182,10 +187,11 @@ class CameraTimeData:
                 self.frames[i+1].original_shape = frame_images[i].shape
                 if zoom_shape is not None:
                     self.frames[i+1].frame = zoom(self.frames[i+1].frame, (zoom_shape[0]/self.frames[i+1].frame.shape[0], zoom_shape[1]/self.frames[i+1].frame.shape[1], 1))
-                    self.frames[i+1].frame = np.moveaxis(self.frames[i+1].frame, 2, 0)
-                    if settings.LOAD_DATA_AUGMENTATION:
-                        frame_s90 = transformations.transform_matrix_channels(self.frames[i+1].frame, transformations.symmetric, 90)
-                        self.frames[i+1].augmentation = { 's90': frame_s90}
+                
+                self.frames[i+1].frame = np.moveaxis(self.frames[i+1].frame, 2, 0)
+                if settings.LOAD_DATA_AUGMENTATION:
+                    frame_s90 = transformations.transform_matrix_channels(self.frames[i+1].frame, transformations.symmetric, 90)
+                    self.frames[i+1].augmentation = { 's90': frame_s90}
 
     
     def compute_bounding_box(self, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
@@ -202,7 +208,7 @@ class CameraTimeData:
            
 
 
-def load_data(max_videos_per_domain = None, zoom_shape = settings.WEBCAMT_NEW_SHAPE, compute_bounding_box=True, save_in_stages=False):
+def load_data(max_videos_per_domain = None, zoom_shape = settings.WEBCAMT_NEW_SHAPE, compute_bounding_box=True, save_in_stages=False, compute_mask=True, max_frames_per_video=None):
     webcamTDir = os.path.join(settings.DATASET_DIRECTORY, 'WebCamT')
     data = {}
     subdirs = [d for d in os.listdir(webcamTDir)]
@@ -241,20 +247,22 @@ def load_data(max_videos_per_domain = None, zoom_shape = settings.WEBCAMT_NEW_SH
                             elif(subsubdir[-4:] == '.avi' and os.path.isfile(subsubdir_path)):
                                 camera.camera_times[time_identifier].video = subsubdir_path
                                 video_queue.append([time_identifier, subsubdir_path])
-                            elif(subsubdir[-4:] == '.msk' and os.path.isfile(subsubdir_path)):
+                            elif(subsubdir[-4:] == '.msk' and os.path.isfile(subsubdir_path)) and compute_mask:
                                 file_mask = open(subsubdir_path)
-                                camera.camera_times[time_identifier].find_region_of_interest(file_mask)
+                                camera.camera_times[time_identifier].find_region_of_interest(file_mask, zoom_shape)
             
             for i, video in enumerate(video_queue):
                 if max_videos_per_domain is not None:
                     if i >= max_videos_per_domain:
                         break
+                print("Extracting Video: "+time_identifier)
                 [time_identifier, subsubdir_path] = video
-                camera.camera_times[time_identifier].extract_frames_from_video(subsubdir_path, zoom_shape)
+                camera.camera_times[time_identifier].extract_frames_from_video(subsubdir_path, zoom_shape, max_frames_per_video)
                 if compute_bounding_box:
                     camera.camera_times[time_identifier].compute_bounding_box(zoom_shape)
-                    print("Computing domain: ", domain_id, ' ', time_identifier)
-                    camera.camera_times[time_identifier].compute_mask_counts()
+                    if compute_mask:
+                        print("Computing domain: ", domain_id, ' ', time_identifier)
+                        camera.camera_times[time_identifier].compute_mask_counts()
             
             
             if save_in_stages:
@@ -375,7 +383,7 @@ def load_structure(is_frame, domain_id, time_id, frame_id, prefix, data_augment 
     structure = joblib.load(frame_path)
     return structure
 
-def build_mask(points):
+def build_mask(points, zoom_shape = settings.WEBCAMT_NEW_SHAPE):
     tuple_points = []
     
     for point in points:
@@ -385,7 +393,8 @@ def build_mask(points):
     ImageDraw.Draw(img).polygon(tuple_points, outline=1, fill=1)
     mask = np.array(img)
 
-    mask = zoom(mask, (settings.WEBCAMT_NEW_SHAPE[0] / settings.WEBCAMT_SHAPE[0], settings.WEBCAMT_NEW_SHAPE[1] / settings.WEBCAMT_SHAPE[1]))
+    if zoom_shape is not None:
+        mask = zoom(mask, (zoom_shape[0] / settings.WEBCAMT_SHAPE[0], zoom_shape[1] / settings.WEBCAMT_SHAPE[1]))
 
     return np.array([mask], dtype=np.float)
 

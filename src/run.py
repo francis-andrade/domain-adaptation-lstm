@@ -48,6 +48,7 @@ parser.add_argument('--use_mask', default=True, type=int, metavar='', help='Use 
 parser.add_argument('--use_transformations', default=True, type=int, metavar='', help='Use Data Augmentation')
 parser.add_argument('--max_frames_per_domain', default=2000, type=int, metavar='', help='Max. number of frames per domain')
 parser.add_argument('--sequence_size', default=10, type=int, metavar='', help='Sequence Size for temporal models')
+parser.add_argument('--results_file_param', default='None', type=str, metavar='', help='Parameter to add in results file')
 # Compile and configure all the model parameters.
 args = parser.parse_args()
 device = torch.device("cuda:"+args.cuda if torch.cuda.is_available() else "cpu")
@@ -104,10 +105,14 @@ args_dict = vars(args)
 lambda_ = args_dict["lambda"]
 
 if args.results_file == "None":
-    if ORIGINAL:
-        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+'noapply'+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_max_frames_per_domain'+str(args.max_frames_per_domain)+'_noapply'
+    if args.results_file_param=='None':
+        extra_param = '_'
     else:
-        results_file = args.model+'_'+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_max_frames_per_domain'+str(args.max_frames_per_domain)+'_'+str(args.mu)
+        extra_param = '_'+args.results_file_param+'_'
+    if ORIGINAL:
+        results_file = args.model+extra_param+settings.PREFIX_DENSITIES+'_'+'noapply'+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_max_frames_per_domain'+str(args.max_frames_per_domain)+'_noapply'
+    else:
+        results_file = args.model+extra_param+settings.PREFIX_DENSITIES+'_'+args.mode+'_'+str(args.lr)+'_mask'+str(args.use_mask)+'_sequence_size'+str(args.sequence_size)+'_max_frames_per_domain'+str(args.max_frames_per_domain)+'_'+str(args.mu)
 else:
     results_file = args.results_file
 

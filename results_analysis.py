@@ -22,7 +22,7 @@ def avg_dict(dict):
     return sum / len(dict.keys())
 
 def verify_parameters(filename, parameter1, parameter2):
-    parameter1 == 'None' or (parameter1 in filename and (parameter2 == 'None' or parameter2 in filename))
+    return parameter1 == 'None' or (parameter1 in filename and (parameter2 == 'None' or parameter2 in filename))
 
 res_total_mae = {}
 avg_total_mae = {}

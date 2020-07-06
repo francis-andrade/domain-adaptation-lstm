@@ -53,5 +53,5 @@ It can be run with command:
 
 It can be run with command:
 
-`python3 src/run.py --model=common
+`python3 src/run.py --model=common`
 

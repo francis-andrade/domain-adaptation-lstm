@@ -1,3 +1,7 @@
+"""
+Module that defines the main settings.
+"""
+
 import os
 import platform
 import transformations
@@ -19,26 +23,22 @@ UCSPEDS_PREPROCESSED_DIRECTORY = 'UCSPeds_spacing5'
 WEBCAMT_PREPROCESSED_DIRECTORY = 'WebCamT_complete'
 USE_BIG_BUS = False
 
-#WEBCAMT_DOMAINS = [403, 410, 511, 551]
-#WEBCAMT_DOMAINS = [403, 511, 551, 572]
-WEBCAMT_DOMAINS = [691]
-#WEBCAMT_DOMAINS = [164, 166, 170, 173, 181, 253, 398, 403, 410, 511, 551, 572, 691, 846, 928] 181 does not have mask
-#WEBCAMT_DOMAINS = [164, 166, 170, 173, 253, 398, 403, 410, 511, 551, 572, 691, 846, 928]
+WEBCAMT_DOMAINS = [511, 551, 691, 846]
 NUM_WEBCAMT_DOMAINS = len(WEBCAMT_DOMAINS)
 WEBCAMT_NEW_SHAPE = (120, 176)
 WEBCAMT_SHAPE = (240, 352)
-TEMPORAL = True
-USE_GAUSSIAN = False
+TEMPORAL = False
+USE_GAUSSIAN = True
 SEQUENCE_SIZE = 3
 LOAD_DATA_AUGMENTATION = False
 VALIDATION_TEST_RATIO = 0.3
-PREFIX_DATA = 'proportional'
-PREFIX_DENSITIES = 'proportional'
+PREFIX_DATA = 'const4'
+PREFIX_DENSITIES = 'const4'
 
 UCSPEDS_DOMAINS = ['vidd', 'vidf']
 DATASET = 'webcamt'
 UCSPEDS_NEW_SHAPE = (158, 238)
-USE_MASK = True
+USE_MASK = False
 
 
 def get_new_shape():

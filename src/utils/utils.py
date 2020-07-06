@@ -1,10 +1,14 @@
+"""
+Module that implements generic utilities functions.
+"""
+
 import logging
 import cv2
 import sys
 import numpy as np
 import settings
-import load_webcamt
-import load_ucspeds
+import loaders.load_webcamt
+import loaders.load_ucspeds
 import torch
 #import skimage.transform as SkT
 
@@ -104,17 +108,17 @@ def density_map(shape, centers, sigmas, out_shape=None, mask=None):
 
 def obtain_frame(frame, data, prefix_frames, prefix_densities, transforms, transform_id):
     if settings.DATASET == 'webcamt':
-        new_frame  = load_webcamt.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])
+        new_frame  = loaders.load_webcamt.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])
     elif settings.DATASET == 'ucspeds':
-        new_frame = load_ucspeds.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])
+        new_frame = loaders.load_ucspeds.load_structure(True, frame[0], frame[1], frame[2], prefix_frames, frame[3])
     if settings.DATASET == 'webcamt':
-        new_density = load_webcamt.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])
+        new_density = loaders.load_webcamt.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])
     elif settings.DATASET == 'ucspeds':
-        new_density = load_ucspeds.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])
+        new_density = loaders.load_ucspeds.load_structure(False, frame[0], frame[1], frame[2], prefix_densities, frame[3])
     if settings.DATASET == 'webcamt':
-        new_mask = load_webcamt.load_mask(data, frame[0], frame[1], frame[3])
+        new_mask = loaders.load_webcamt.load_mask(data, frame[0], frame[1], frame[3])
     elif settings.DATASET == 'ucspeds':
-        new_mask = load_ucspeds.load_mask(data, frame[0], frame[1], frame[3])
+        new_mask = loaders.load_ucspeds.load_mask(data, frame[0], frame[1], frame[3])
     
     if settings.DATASET == 'webcamt':
         new_count = len(data[frame[0]].camera_times[frame[1]].frames[frame[2]].vehicles)
@@ -307,24 +311,3 @@ def split_test_validation(domain_insts):
         val_insts.append(domain_insts[idx])
     
     return val_insts, test_insts
-
-'''
-def show_images(plt, var_name, X, density, count, shape=None):
-    labels = ['img {} count = {} | '.format(i, int(cnti)) for i, cnti in enumerate(count)]
-
-    if shape is not None:
-        N = X.shape[0]  # N, C, H, W
-        X, density = X.transpose(2, 3, 0, 1), density.transpose(2, 3, 0, 1)  # H, W, N, C (format expected by skimage)
-        X, density = SkT.resize(X, (shape[0], shape[1], N, 3)), SkT.resize(density, (shape[0], shape[1], N, 1))
-        X, density = X.transpose(2, 3, 0, 1), density.transpose(2, 3, 0, 1)  # N, C, H, W
-    Xh = np.tile(np.mean(X, axis=1, keepdims=True), (1, 3, 1, 1))
-    density = np.squeeze(density)
-    density[density < 0] = 0.
-    scale = np.max(density, axis=(1, 2))[:, np.newaxis, np.newaxis] + 1e-9
-    density /= scale
-    Xh[:, 1, :, :] *= 1 - density
-    Xh[:, 2, :, :] *= 1 - density
-    density = np.tile(density[:, np.newaxis, :, :], (1, 3, 1, 1))
-    plt.plot(var_name + ' highlighted', Xh, labels)
-    plt.plot(var_name + ' density maps', density, labels)
-'''

@@ -1,4 +1,4 @@
-r"""
+"""
 Adapted from the visdom-tutorial project from Noa Garcia:
 https://github.com/noagarcia/visdom-tutorial
 

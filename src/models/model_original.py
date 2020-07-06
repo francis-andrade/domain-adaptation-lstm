@@ -1,5 +1,9 @@
-from collections import OrderedDict
+"""
+Module that implements the FCN-rLSTM, as described in the paper:
+Zhang et al., "FCN-rLSTM: Deep spatio-temporal neural networks for vehicle counting in city cameras", ICCV 2017.
+"""
 
+from collections import OrderedDict
 import torch
 from torch import nn
 from torch.nn.utils import rnn
@@ -7,13 +11,13 @@ import settings
 
 
 class FCN_rLSTM(nn.Module):
-    r"""
+    """
     Implementation of the model FCN-rLSTM, as described in the paper:
     Zhang et al., "FCN-rLSTM: Deep spatio-temporal neural networks for vehicle counting in city cameras", ICCV 2017.
     """
 
     def __init__(self, temporal=False, image_dim=None):
-        r"""
+        """
         Args:
             temporal: whether to have or not the LSTM block in the network (default: `False`).
             image_dim: tuple (height, width) with image dimensions, only needed if `temporal` is `True` (default: `None`).
@@ -101,17 +105,17 @@ class FCN_rLSTM(nn.Module):
         return h0, c0
 
     def forward(self, X, mask=None, lengths=None):
-        r"""
+        """
         Args:
-            X: tensor with shape (seq_len, batch_size, channels, height, width) if `temporal` is `True` or (batch_size, channels, height, width) otherwise.
+            X: tensor with shape (batch_size, sequence_size, channels, height, width) if `temporal` is `True` or (batch_size, channels, height, width) otherwise.
             mask: binary tensor with same shape as X to mask values outside the active region;
                 if `None`, no masking is applied (default: `None`).
             lengths: tensor with shape (batch_size,) containing the lengths of each sequence, which must be in decreasing order;
                 if `None`, all sequences are assumed to have maximum length (default: `None`).
 
         Returns:
-            density: predicted density map, tensor with shape (seq_len, batch_size, 1, height, width) if `temporal` is `True` or (batch_size, 1, height, width) otherwise.
-            count: predicted number of vehicles in each image, tensor with shape (seq_len, batch_size) if `temporal` is `True` or (batch_size) otherwise.
+            density: predicted density map, tensor with shape (batch_size, sequence_size, 1, height, width) if `temporal` is `True` or (batch_size, 1, height, width) otherwise.
+            count: predicted number of vehicles in each image, tensor with shape (batch_size, sequence_size) if `temporal` is `True` or (batch_size) otherwise.
         """
 
         if self.temporal:  # X has shape (N, T, C, H, W)
@@ -158,5 +162,16 @@ class FCN_rLSTM(nn.Module):
         return density, count
     
     def inference(self, inputs, mask):
+        """Computes predicted densities and counts 
+
+        Args:
+            inputs: tensor with shape (batch_size, sequence_size, channels, height, width) if `temporal` is `True` or (batch_size, channels, height, width) otherwise.
+            mask: binary tensor with same shape as inputs to mask values outside the active region;
+                if `None`, no masking is applied (default: `None`).
+        
+        Returns:
+            density: predicted density map, tensor with shape (batch_size, sequence_size, 1, height, width) if `temporal` is `True` or (batch_size, 1, height, width) otherwise.
+            count: predicted number of vehicles in each image, tensor with shape (batch_size, sequence_size) if `temporal` is `True` or (batch_size) otherwise.
+        """
 
         return self(inputs, mask)

@@ -1,14 +1,22 @@
+"""
+Module that checks the density maps loaded by the generator are correct.
+"""
+
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import settings
-from load_webcamt import CameraData, CameraTimeData, FrameData, VehicleData
-import load_webcamt
-from load_ucspeds import VideoDataUCS, FrameDataUCS
-import load_ucspeds
-import utils
-import transformations
+from loaders.load_webcamt import CameraData, CameraTimeData, FrameData, VehicleData
+import loaders.load_webcamt
+from loaders.load_ucspeds import VideoDataUCS, FrameDataUCS
+import loaders.load_ucspeds
+import utils.utils
+import utils.transformations
+import cv2
 
+def show_opencv(image):
+    cv2.imshow('rot', image)
+    cv2.waitKey()
 
 def show_plot(frame, i, X, density, count=None, mask=None):
     if frame is None:
@@ -42,10 +50,11 @@ def show_plot(frame, i, X, density, count=None, mask=None):
         ax5 = fig.add_subplot(gs[2, :])
         Xm = np.tile(np.mean(X*mask, axis=2, keepdims=True), (1, 1, 3))
         dm = density*mask
-        Xm[:, :, 1] *= (1-(dm).squeeze()/np.max(dm))
-        Xm[:, :, 2] *= (1-dm.squeeze()/np.max(dm))
+        Xm[:, :, 1] *= (1-(dm).squeeze()/np.max(density))
+        Xm[:, :, 2] *= (1-dm.squeeze()/np.max(density))
         ax5.imshow((Xm*mask).astype('uint8'))
         ax5.set_title('Masked Highlighted')
+        show_opencv((Xm*mask).astype('uint8'))
 
     mask_sum = -1
     if settings.USE_MASK:
@@ -60,12 +69,12 @@ if __name__ == '__main__':
     #data =  load_data.load_data_from_file('first', 'proportional')
 
     if settings.DATASET == 'webcamt':
-        data, data_insts = load_webcamt.load_insts(settings.PREFIX_DATA, 20)
+        data, data_insts = loaders.load_webcamt.load_insts(settings.PREFIX_DATA, 10)
     elif settings.DATASET == 'ucspeds':
-        data, data_insts = load_ucspeds.load_insts(settings.PREFIX_DATA, 20)
+        data, data_insts = loaders.load_ucspeds.load_insts(settings.PREFIX_DATA, 10)
 
     if settings.TEMPORAL:
-        data_insts = utils.group_sequences(data_insts, settings.SEQUENCE_SIZE)
+        data_insts = utils.utils.group_sequences(data_insts, settings.SEQUENCE_SIZE)
 
     '''
     for i in range(len(data_insts)):
@@ -76,16 +85,16 @@ if __name__ == '__main__':
     no_batches = 0
     transforms = []
 
-    def hor_sym(matrix): return transformations.transform_matrix_channels(
-        matrix, transformations.symmetric, 90)
+    def hor_sym(matrix): return utils.transformations.transform_matrix_channels(
+        matrix, utils.transformations.symmetric, 90)
     #transforms.append([hor_sym, hor_sym])
-    #transforms.append([lambda matrix : transformations.change_brightness_contrast(matrix, 30, 50), lambda matrix : matrix])
-    train_loader = utils.multi_data_loader(data_insts, 10, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms, shuffle=False)
+    #transforms.append([lambda matrix : utils.transformations.change_brightness_contrast(matrix, 30, 50), lambda matrix : matrix])
+    train_loader = utils.utils.multi_data_loader(data_insts, 10, settings.PREFIX_DATA, settings.PREFIX_DENSITIES, data, transforms, shuffle=True)
 
     i = 0
     #train_insts = list(train_loader)
     for batch_insts, batch_densities, batch_counts, batch_masks in train_loader:
-        batch_idx = 0
+        batch_idx = 2
         if settings.TEMPORAL:
             for idx_temp in range(len(batch_insts[batch_idx])):
                 for idx in range(len(batch_insts[batch_idx][idx_temp])):

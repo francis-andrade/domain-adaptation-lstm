@@ -1,3 +1,7 @@
+"""
+Module that implements the functions related to data augmentation.
+"""
+
 import numpy as np
 
 def rotate(shape, coordinate_x, coordinate_y, angle):
@@ -47,6 +51,17 @@ def symmetric(shape, coordinate_x, coordinate_y, angle_axis):
 
 
 def change_brightness_contrast(matrix, brightness, contrast):
+    """
+    Functions that transforms the brightness and contrast of a matrix.
+
+    Args:
+        matrix: Matrix to be transformed.
+        brightness: new matrix brightness.
+        contrast new matrix contrast
+    
+    Returns:
+        matrix: New matrix which the original one was transformed to.
+    """
     matrix = matrix * (contrast/127+1) - contrast + brightness
     matrix = np.clip(matrix, 0, 255)
     return matrix
@@ -78,6 +93,19 @@ def transform_matrix(matrix, function, angle):
 
 
 def transform_matrix_channels(matrix, function, angle):
+    """
+    Function that applies a transformation (rotation or symmetry) to a matrix with channels.  
+    
+    Args:
+        matrix: Matrix to be transformed
+        function: Function that defines the transformation to apply (rotate or symmetry)
+        angle: Angle of the transformation
+    
+    Returns:
+        New matrix to which the original matrix was transformed to.
+    Raises:
+        ValueError: If matrix is empty (i.e. has size 0)
+    """
     C, H, W = matrix.shape
     new_matrix = np.empty(matrix.shape, dtype='float')
     for channel in range(C):

@@ -1,3 +1,7 @@
+"""
+Module that loads the raw data from WebCamT datasets and saves it in files to fed into the models.
+This module also loads data from the previous files to be fed into the model.
+"""
 ##
 ## Note 1: File 410/410-20160430-12/000157.xml and other have an error Substitute & for &amp
 ## Note 2: Some frames id are the same for different frames: for example in 410-20160704-12 290.xml and 295.xml
@@ -14,7 +18,7 @@ import utils
 from scipy.ndimage import zoom
 import numpy as np
 import joblib
-import transformations
+import utils.transformations
 from PIL import Image, ImageDraw
 
 class VehicleData:
@@ -53,8 +57,8 @@ class VehicleData:
     
     def calculate_sigma(self):
         factor = 1/1.96 # so that exactly 5% of gaussian distribution is outside the car boundaries
-        return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
-        #return [15, 15]               
+        #return [factor*(self.xmax-self.xmin), factor*(self.ymax-self.ymin)]
+        return [4, 4]               
 
 class FrameData:
     
@@ -102,7 +106,7 @@ class FrameData:
 
         self.density = self.density.reshape(1, self.density.shape[0], self.density.shape[1])
         if settings.LOAD_DATA_AUGMENTATION:
-            density_s90 = transformations.transform_matrix_channels(self.density, transformations.symmetric, 90)
+            density_s90 = utils.transformations.transform_matrix_channels(self.density, utils.transformations.symmetric, 90)
             self.density_augmentation = {'s90': density_s90}
              
     
@@ -118,7 +122,6 @@ class FrameData:
     def draw_bounding_box(self):
 
         self.density = np.zeros((self.original_shape[0], self.original_shape[1]))
-        print(self.density.shape)
        
         for vehicle in self.vehicles:
             area = (vehicle.ymax - vehicle.ymin + 1)*(vehicle.xmax-vehicle.xmin+1)
@@ -159,11 +162,10 @@ class CameraTimeData:
                     points[1] = points[1][:-1]
                 self.points.append([int(points[0]), int(points[1])])
         
-        #print(self.year,' ', self.month,' ', self.day,' ', self.hour,' ', self.minute)
-        #print(self.points)
+
         self.mask = build_mask(self.points, zoom_shape)
         if settings.LOAD_DATA_AUGMENTATION:
-            mask_s90 = transformations.transform_matrix_channels(self.mask, transformations.symmetric, 90)
+            mask_s90 = utils.transformations.transform_matrix_channels(self.mask, utils.transformations.symmetric, 90)
             self.augmentation = {'s90': mask_s90}
 
     def extract_frames_from_video(self, filepath, zoom_shape = settings.WEBCAMT_NEW_SHAPE, max_frames_per_video=None):
@@ -190,7 +192,7 @@ class CameraTimeData:
                 
                 self.frames[i+1].frame = np.moveaxis(self.frames[i+1].frame, 2, 0)
                 if settings.LOAD_DATA_AUGMENTATION:
-                    frame_s90 = transformations.transform_matrix_channels(self.frames[i+1].frame, transformations.symmetric, 90)
+                    frame_s90 = utils.transformations.transform_matrix_channels(self.frames[i+1].frame, utils.transformations.symmetric, 90)
                     self.frames[i+1].augmentation = { 's90': frame_s90}
 
     
@@ -459,14 +461,12 @@ def load_insts(prefix_data, max_insts_per_domain=None):
     data_insts = []
 
     for domain_id in settings.WEBCAMT_DOMAINS:
-        #print(domain_id)
         domain_insts = []
     
         new_num_insts = 0
         camera_times_ids = list(data[domain_id].camera_times.keys())
         camera_times_ids.sort()
         for time_id in camera_times_ids:
-            #print('\t', time_id)
             if max_insts_per_domain is not None and new_num_insts >= max_insts_per_domain:
                 break
             new_data_insts, new_data_densities, new_data_counts = {}, {}, {}

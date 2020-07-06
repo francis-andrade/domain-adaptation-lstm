@@ -1,25 +1,28 @@
+"""
+Module that contains the main script that runs the models.
+"""
 import settings
 import argparse
 import torch
 import utils
 import numpy as np
-from model import MDANet
-from model_temporal_common import MDANTemporalCommon
-from model_temporal_double import MDANTemporalDouble
-from model_temporal_single import MDANTemporalSingle
+from models.model_simple import MDANet
+from models.model_temporal_common import MDANTemporalCommon
+from models.model_temporal_double import MDANTemporalDouble
+from models.model_temporal_single import MDANTemporalSingle
 import torch.optim as optim
 import torch.nn.functional as F
 import pickle
-from load_webcamt import CameraData, CameraTimeData, FrameData, VehicleData
-import load_webcamt
-from load_ucspeds import VideoDataUCS, FrameDataUCS
-import load_ucspeds
+from loaders.load_webcamt import CameraData, CameraTimeData, FrameData, VehicleData
+import loaders.load_webcamt
+from loaders.load_ucspeds import VideoDataUCS, FrameDataUCS
+import loaders.load_ucspeds
 import joblib
 import gc
 import plotter
 import copy
 import os
-from model_original import FCN_rLSTM
+from models.model_original import FCN_rLSTM
 
 
 
@@ -49,6 +52,7 @@ parser.add_argument('--use_transformations', default=True, type=int, metavar='',
 parser.add_argument('--max_frames_per_domain', default=2000, type=int, metavar='', help='Max. number of frames per domain')
 parser.add_argument('--sequence_size', default=10, type=int, metavar='', help='Sequence Size for temporal models')
 parser.add_argument('--results_file_param', default='None', type=str, metavar='', help='Parameter to add in results file')
+parser.add_argument('--gamma', default=10, type=float, metavar='', help='Gamma parameter for multisource domain adaptation')
 # Compile and configure all the model parameters.
 args = parser.parse_args()
 device = torch.device("cuda:"+args.cuda if torch.cuda.is_available() else "cpu")
@@ -83,9 +87,9 @@ settings.USE_MASK = args.use_mask
 settings.LOAD_DATA_AUGMENTATION = args.use_transformations # This was changed on 14/06-15:19. Before it meant to use transformations on the run
 
 if args.dataset == 'webcamt':
-    data, data_insts = load_webcamt.load_insts(settings.PREFIX_DATA, args.max_frames_per_domain)
+    data, data_insts = loaders.load_webcamt.load_insts(settings.PREFIX_DATA, args.max_frames_per_domain)
 elif args.dataset == 'ucspeds':
-    data, data_insts = load_ucspeds.load_insts(settings.PREFIX_DATA, args.max_frames_per_domain)
+    data, data_insts = loaders.load_ucspeds.load_insts(settings.PREFIX_DATA, args.max_frames_per_domain)
 
 if settings.TEMPORAL:
     data_insts= utils.group_sequences(data_insts, settings.SEQUENCE_SIZE)
@@ -100,7 +104,7 @@ batch_size = args.batch_size
 num_domains = len(data_insts) - 1
 lr = args.lr
 mu = args.mu
-gamma = 10.0
+gamma = args.gamma
 mode = args.mode
 args_dict = vars(args)
 lambda_ = args_dict["lambda"]
@@ -343,6 +347,8 @@ for i in range(len(data_insts)):
 
 
 logger.info("Prediction accuracy with multiple source domain adaptation using madnNet: ")
+if settings.DATASET == 'webcamt':
+    args_dict['webcamt_domains'] = settings.WEBCAMT_DOMAINS
 results['args'] = args_dict
 logger.info(results)
 

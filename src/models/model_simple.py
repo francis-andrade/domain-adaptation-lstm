@@ -1,5 +1,6 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+"""
+Module that implements the Simple Model, as described in the dissertation.
+"""
 
 import torch
 import torch.nn as nn
@@ -24,6 +25,9 @@ class GradientReversalLayer(torch.autograd.Function):
         return grad_input
 
 class Flatten(nn.Module):
+    """
+    Flattens a tensor.
+    """
     def forward(self, x):
         batch_size = x.shape[0] # read in N, C, H, W
         return x.reshape(batch_size, -1)  # "flatten" the C * H * W values into a single vector per image
@@ -34,6 +38,10 @@ class MDANet(nn.Module):
     Multi-layer perceptron with adversarial regularizer by domain classification.
     """
     def __init__(self, num_domains):
+        """
+        Args:
+            num_domains: Number of source domains
+        """
         super(MDANet, self).__init__()
         self.num_domains = num_domains
         # Parameter of the domain classification layer, multiple sources single target domain adaptation.
@@ -100,42 +108,59 @@ class MDANet(nn.Module):
                 ('Conv6', nn.Conv2d(64, 1, (1, 1))),
             ])))
 
-    def forward_cnn(self, input, mask = None):
+    def forward_cnn(self, inputs, mask = None):
+        """Forward pass on the convolutional neural network
+
+        Args:
+            inputs: tensor with shape (batch_size, channels, height, width).
+            mask: binary tensor with same shape as inputs to mask values outside the active region;
+                if `None`, no masking is applied (default: `None`).
+        
+        Returns:
+            h: Output of the hyper-atrous combination. It is a tensor with shape (fc_size, 1, height, width). fc_size is dependent on the dataset.
+            density: Tensor with the densities predicted by the CNN. It has shape (batch_size, 1, height, width).
+        """
         
         if mask is not None:
-            input = input * mask  # zero input values outside the active region
+            inputs = inputs * mask  # zero input values outside the active region
 
-        #print(input.shape)
         h1 = self.conv_blocks[0](input)
         h2 = self.conv_blocks[1](h1)
         h3 = self.conv_blocks[2](h2)
         h4 = self.conv_blocks[3](h3)
         h = torch.cat((h1, h2, h3, h4), dim=1)  # hyper-atrous combination
         g = self.conv_blocks[4](h)
-        #print(g.shape)
         if mask is not None:
             g = g * mask  # zero output values outside the active region
 
         density = g  # predicted density map
-        #count = g.sum(dim=(1, 2, 3))  # predicted vehicle count
 
         return h, density
 
-    def forward(self, sinputs, tinputs, mask=None, tmask=None):
-        """
-        :param sinputs:     A list of k inputs from k source domains.
-        :param tinputs:     Input from the target domain.
-        :return:
+    def forward(self, sinputs, tinputs, smask=None, tmask=None):
+        """Forward pass.
+
+        Args:
+            sinputs: A list of k tensors from k source domains, each with shape (batch_size, channels, height, width).
+            tinputs: Tensor with target domain frames, with shape (batch_size, channels, height, width).
+            smask: A list of k masks from k source domains with shape (batch_size, channels, height, width).
+            tmask: Tensor representing the target domain frames. It has shape (batch_size, channels, height, width).
+        
+        Returns: 
+            sdensity: List  of predicted densities for the k source domains. Each element is a tensor with shape (batch_size, channels, height, width).
+            scount: List  of predicted counts for the k source domains. Each element is a tensor with shape (batch_size).
+            sdomains: A list of k elements where, each element is a tensor with shape (batch_size, 2) that represents the predicted log probabilities of the source insts from a certain domain being part of a target and source domain
+            tdomains: Tensor with the predicted probabilities of the target insts being part of a target and source domain. It has shape (batch_size, 2).
         """
 
         sdensity = []
         scount = []
         sh = []
         for i in range(self.num_domains):
-            if mask is None:
+            if smask is None:
                 cnn_mask = None
             else:
-                cnn_mask = mask[i]
+                cnn_mask = smask[i]
             h, density = self.forward_cnn(sinputs[i], cnn_mask)
             count = density.sum(dim=(1,2,3))
             sh.append(h)
@@ -152,12 +177,21 @@ class MDANet(nn.Module):
         return sdensity, scount, sdomains, tdomains
     
     def inference(self, inputs, mask=None):
+        """Computes predicted densities and counts.
+
+        Args:
+            inputs: tensor with shape (batch_size, channels, height, width).
+            mask: binary tensor with same shape as inputs to mask values outside the active region;
+                if `None`, no masking is applied (default: `None`).
+        
+        Returns:
+            densities: predicted density map, tensor with shape (batch_size, 1, height, width).
+            count: predicted number of vehicles in each image, tensor with shape (batch_size).
+        """
         _, densities = self.forward_cnn(inputs, mask)
         counts = densities.sum(dim=(1,2,3))
         return densities, counts
     
-    def to_string(self):
-        return "simple_model"
 
    
 

@@ -1,11 +1,15 @@
+"""
+Module that checks the density maps loaded are correct.
+"""
+
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import settings
-from load_webcamt import CameraData, CameraTimeData, FrameData, VehicleData
-import load_webcamt
-from load_ucspeds import VideoDataUCS, FrameDataUCS
-import load_ucspeds
+from loaders.load_webcamt import CameraData, CameraTimeData, FrameData, VehicleData
+import loaders.load_webcamt
+from loaders.load_ucspeds import VideoDataUCS, FrameDataUCS
+import loaders.load_ucspeds
 
 
 def show_plot(cid, i, X, density, count=None, mask=None):
@@ -49,7 +53,7 @@ def show_plot(cid, i, X, density, count=None, mask=None):
     plt.show()
 
 if __name__ == '__main__':
-    data = load_webcamt.load_data(1, None, compute_mask=True, max_frames_per_video=10)
+    data = loaders.load_webcamt.load_data(1, None, compute_mask=True, max_frames_per_video=10)
     #data =  load_data.load_data_from_file('first', 'first')
     i = 0
     for domain in data:

@@ -1,3 +1,8 @@
+"""
+Module that loads the raw data from UCSPeds datasets and saves it in files to fed into the models.
+This module also loads data from the previous files to be fed into the model.
+"""
+
 import os
 import settings
 import utils
@@ -5,7 +10,7 @@ import cv2
 import joblib
 import scipy.io as sio
 import numpy as np
-import transformations
+import utils.transformations
 
 FRAMES_SPACING = 5
 SIGMAX = 8
@@ -73,24 +78,22 @@ class FrameDataUCS:
 
 def compute_mask(domain_path, data_domain):
     subfiles = [f for f in os.listdir(domain_path)]
-    #print(subfiles)
+
     for file in subfiles:
         if file[-12:] == '1_33_roi.mat' or file[-24:] == '1_33_roi_mainwalkway.mat':
             file_path = os.path.join(domain_path, file)
-            #print(file_path)
             mask = sio.loadmat(file_path)
             data_domain[1].mask = np.array([mask['roi'][0][0][2]], dtype=np.float)
 
             if settings.LOAD_DATA_AUGMENTATION:
-                mask_s90 = transformations.transform_matrix_channels(data_domain[1].mask, transformations.symmetric, 90)
+                mask_s90 = utils.transformations.transform_matrix_channels(data_domain[1].mask, utils.transformations.symmetric, 90)
                 data_domain[1].augmentation = {'s90': mask_s90}
 
 def compute_densities(domain_path, data_domain):
     subfiles = [f for f in os.listdir(domain_path)]
-    #print(subfiles)
+
     for file in subfiles:
             if file[-15:] == '_frame_full.mat':
-                #print('b1')
                 vid_number, clip_number = parse_gt_file_name(file)
                 file_path = os.path.join(domain_path, file)
                 data_matlab = sio.loadmat(file_path)
@@ -109,7 +112,7 @@ def compute_densities(domain_path, data_domain):
                         data_domain[vid_number].frames[real_frame_number].count = len(data_matlab['fgt'][0][0][0][0][frame_number][0][0][0])
 
                         if settings.LOAD_DATA_AUGMENTATION:
-                            density_s90 = transformations.transform_matrix_channels(data_domain[vid_number].frames[real_frame_number].density, transformations.symmetric, 90)
+                            density_s90 = utils.transformations.transform_matrix_channels(data_domain[vid_number].frames[real_frame_number].density, utils.transformations.symmetric, 90)
                             data_domain[vid_number].frames[real_frame_number].density_augmentation = {'s90': density_s90}
 
     for vid_number in data_domain.keys():
@@ -148,7 +151,7 @@ def save_data_multiple_files_domain(data_domain, domain_id, prefix_frames, prefi
             density = data_domain[video_number].frames[frame_id].density
             if frame is not None and density is not None:
                 str_id = str(frame_id)
-                #print(str_id)
+
                 frame_path = os.path.join(video_directory_frame, prefix_frames+'_'+str(str_id)+'.npy')
                 joblib.dump(frame, frame_path)
                 density_path = os.path.join(video_directory_density, prefix_densities+'_'+str(str_id)+'.npy')
@@ -174,12 +177,11 @@ def load_data(save_changes=True):
     uscPedsDir = os.path.join(settings.DATASET_DIRECTORY, 'UCSPeds')
     data = {}
     subdirs = [d for d in os.listdir(uscPedsDir)]
-    #print(subdirs)
+
     for subdir in subdirs:
         subdir_path = os.path.join(uscPedsDir, subdir)
         
         if os.path.isdir(subdir_path) and subdir[:3]=='vid':
-            #print('b1')
             domain_id = subdir
             
             data[domain_id] = {}
@@ -188,7 +190,6 @@ def load_data(save_changes=True):
                 
                 subsubdir_path = os.path.join(subdir_path, subsubdir)
                 if os.path.isdir(subsubdir_path) and len(subsubdir) >= 5 and subsubdir[:4] == domain_id and subsubdir[4] == '1'  and subsubdir[-2:] == '.y':
-                    #print('b2')
                     vid_number, clip_number = parse_folder_name(subsubdir)
                     if vid_number not in data[domain_id].keys():
                         data[domain_id][vid_number] = VideoDataUCS()
@@ -197,12 +198,9 @@ def load_data(save_changes=True):
 
                     images = [img for img in os.listdir(subsubdir_path)]
                     for image in images:
-                        #print(image)
                         if image[:4] == domain_id and image[-4:] == '.png':
-                            #print('b3')
                             vid_number_image, clip_number_image, frame_number = parse_image_name(image)
 
-                            #print(vid_number_image,' ', vid_number,' ', clip_number_image,' ', clip_number)
                             if vid_number_image != vid_number or clip_number_image != clip_number:
                                 raise ValueError(image + ' is in the wrong folder!')
                             
@@ -211,9 +209,8 @@ def load_data(save_changes=True):
                                 frame_data = FrameDataUCS()
                                 frame_data.frame = np.moveaxis(cv2.imread(image_path), 2, 0)
                                 if settings.LOAD_DATA_AUGMENTATION:
-                                    frame_s90 = transformations.transform_matrix_channels(frame_data.frame, transformations.symmetric, 90)
+                                    frame_s90 = utils.transformations.transform_matrix_channels(frame_data.frame, utils.transformations.symmetric, 90)
                                     frame_data.augmentation = { 's90': frame_s90}
-                                #print(frame_data.frame.shape)
                                 real_frame_number = int((clip_number*200+frame_number-1)/FRAMES_SPACING)
                                 video_data.frames[real_frame_number] = frame_data
                 
@@ -266,8 +263,7 @@ def load_structure(is_frame, domain_id, video_id, frame_id, prefix, data_augment
     frame_path = os.path.join(time_directory, prefix+'_'+str(frame_id)+aug_prefix+'.npy')
 
     structure = joblib.load(frame_path)
-    #mask = data[domain_id][int(video_id)].mask
-    #print(structure.shape)
+
     return structure
 
 def load_mask(data, domain_id, video_id, data_augment = None):

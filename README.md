@@ -30,3 +30,28 @@ This is the original model described in paper by Zhang et al. It can be run with
 It can be run with command:
 
 `python3 src/run.py --model=simple`
+
+### SingleLSTM
+
+![alt text](https://imgur.com/ZYQZmR5.png)
+
+It can be run with command:
+
+`python3 src/run.py --model=single
+
+### DoubleLSTM
+
+![alt text](https://imgur.com/ZIEcDAO.png)
+
+It can be run with command:
+
+`python3 src/run.py --model=double`
+
+### CommonLSTM
+
+![alt text](https://imgur.com/oKHl1EW.png)
+
+It can be run with command:
+
+`python3 src/run.py --model=common
+

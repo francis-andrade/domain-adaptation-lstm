@@ -7,7 +7,7 @@ In total, I proposed 4 new domain adaptation models, that can be run with the co
 
 These models were inspired by the FCN-rLSTM network, described in paper:
 
-`Zhang et al., "FCN-rLSTM: Deep spatio-temporal neural networks for vehicle counting in city cameras", ICCV 2017.`
+```Zhang et al., "FCN-rLSTM: Deep spatio-temporal neural networks for vehicle counting in city cameras", ICCV 2017.```
 
 and by the algorithm MDAN, described in paper:
 
@@ -15,5 +15,18 @@ and by the algorithm MDAN, described in paper:
 
 ### FCN-rLSTM
 
-### Simple Model
 ![alt text](https://imgur.com/aly17za.png)
+
+This is the original model described in paper by Zhang et al. It can be run with commands:
+
+`python3 src/run.py --model=original`, in case the temporal component of data should not be considered.
+
+`python3 src/run.py --model=original_temporal`, in case the temporal component of data should be considered.
+
+### Simple Model
+
+![alt text](https://imgur.com/HPdMQGe.png)
+
+It can be run with command:
+
+`python3 src/run.py --model=simple`

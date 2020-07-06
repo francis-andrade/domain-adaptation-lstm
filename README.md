@@ -6,8 +6,11 @@ This software was made over the course of my master dissertation at INESCTEC-Por
 In total, I proposed 4 new domain adaptation models, that can be run with the code in this repository: Simple Model, SingleLSTM Model, DoubleLSTM Model and CommonLSTM Model. 
 
 These models were inspired by the FCN-rLSTM network, described in paper:
+
 `Zhang et al., "FCN-rLSTM: Deep spatio-temporal neural networks for vehicle counting in city cameras", ICCV 2017.`
+
 and by the algorithm MDAN, described in paper:
+
 `Zhao et al., "Adversarial Multiple Source Domain Adaptation", Advances in Neural Information Processing Systems 2018.`
 
 ### FCN-rLSTM

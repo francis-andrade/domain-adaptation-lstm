@@ -4,7 +4,6 @@ Module that defines the main settings.
 
 import os
 import platform
-import transformations
 
 def get_dataset_directory():
     """

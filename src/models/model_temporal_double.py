@@ -5,7 +5,7 @@ Module that implements the DoubleLSTM, as described in the dissertation.
 import torch
 from torch import nn
 from torch.nn.utils import rnn
-from model_temporal import MDANTemporal
+from models.model_temporal import MDANTemporal
 import torch.nn.functional as F
 import settings
 

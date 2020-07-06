@@ -124,7 +124,7 @@ class MDANet(nn.Module):
         if mask is not None:
             inputs = inputs * mask  # zero input values outside the active region
 
-        h1 = self.conv_blocks[0](input)
+        h1 = self.conv_blocks[0](inputs)
         h2 = self.conv_blocks[1](h1)
         h3 = self.conv_blocks[2](h2)
         h4 = self.conv_blocks[3](h3)

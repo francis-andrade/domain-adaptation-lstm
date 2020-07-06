@@ -5,7 +5,7 @@ Module that implements the Base class of temporal models.
 import torch
 from torch import nn
 from torch.nn.utils import rnn
-from model import MDANet
+from models.model_simple import MDANet
 import torch.nn.functional as F
 import settings
 

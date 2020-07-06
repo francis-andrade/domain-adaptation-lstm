@@ -38,7 +38,7 @@ It can be run with command:
 
 It can be run with command:
 
-`python3 src/run.py --model=single
+`python3 src/run.py --model=single`
 
 ### DoubleLSTM
 

@@ -3,7 +3,7 @@
 ## What is this
 This software was made over the course of my master dissertation at INESCTEC-Porto. In it, I studied how to implement domain adaptation models that considered the temporal component of data.
 
-In total, I proposed 4 new domain adaptation models, that can be run with the code in this repository: Simple Model, SingleLSTM Model, DoubleLSTM Model and CommonLSTM Model. 
+In total, I proposed 4 new domain adaptation models, that can be run with the code found in this repository: Simple Model, SingleLSTM Model, DoubleLSTM Model and CommonLSTM Model. 
 
 These models were inspired by the FCN-rLSTM network, described in paper:
 
